@@ -8,16 +8,35 @@ export const streamOpenAICompletion = async (
   signal?: AbortSignal,
   systemPrompt?: string
 ) => {
+  // Check if model is o1 series (o1-preview, o1-mini)
+  const isO1 = model.startsWith('o1');
+
+  // Filter messages to format them for API
   const apiMessages = messages.map(m => ({
     role: m.role,
     content: m.content
   }));
 
   if (systemPrompt) {
-    apiMessages.unshift({
-      role: 'system',
-      content: systemPrompt
-    });
+    if (isO1) {
+      // o1 models do not support 'system' role. Prepend system prompt to the first user message.
+      const firstUserIndex = apiMessages.findIndex(m => m.role === 'user');
+      if (firstUserIndex !== -1) {
+        apiMessages[firstUserIndex].content = `System Instruction: ${systemPrompt}\n\nUser Query: ${apiMessages[firstUserIndex].content}`;
+      } else {
+        // Fallback if no user message starts the conversation
+        apiMessages.unshift({
+          role: 'user',
+          content: `System Instruction: ${systemPrompt}`
+        });
+      }
+    } else {
+      // Standard GPT models support system role
+      apiMessages.unshift({
+        role: 'system',
+        content: systemPrompt
+      });
+    }
   }
 
   try {

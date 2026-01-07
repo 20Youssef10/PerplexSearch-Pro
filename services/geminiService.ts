@@ -137,11 +137,14 @@ export const streamGeminiCompletion = async (
     systemInstruction: systemPrompt,
   };
 
+  // Configure based on specific model capabilities
   if (model === 'gemini-3-flash-preview') {
     config.tools = [{ googleSearch: {} }];
-  } else if (model === 'gemini-3-pro-preview') {
+  } else if (model === 'gemini-3-pro-preview' || model === 'gemini-2.5-pro') {
+    // Both 3 Pro and 2.5 Pro support thinking
     config.thinkingConfig = { thinkingBudget: 2048 }; 
   } else if (model === 'gemini-2.5-flash') {
+    // 2.5 Flash often used with Maps or standard tasks
     config.tools = [{ googleMaps: {} }];
   }
 

@@ -27,26 +27,56 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
   {
     id: 'gemini-3-flash-preview',
     name: 'Gemini 3 Flash',
-    description: 'Google: Fast, low latency',
+    description: 'Google: Next-gen fast model',
     provider: 'google'
   },
   {
     id: 'gemini-3-pro-preview',
     name: 'Gemini 3 Pro',
-    description: 'Google: Complex reasoning',
+    description: 'Google: Next-gen reasoning',
+    provider: 'google'
+  },
+  {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    description: 'Google: Versatile & Efficient (Maps)',
+    provider: 'google'
+  },
+  {
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    description: 'Google: High intelligence & Thinking',
     provider: 'google'
   },
   // OpenAI
   {
     id: 'gpt-4o',
     name: 'GPT-4o',
-    description: 'OpenAI: Most advanced model',
+    description: 'OpenAI: Most advanced standard model',
     provider: 'openai'
   },
   {
     id: 'gpt-4o-mini',
     name: 'GPT-4o Mini',
     description: 'OpenAI: Efficient & fast',
+    provider: 'openai'
+  },
+  {
+    id: 'gpt-4-turbo',
+    name: 'GPT-4 Turbo',
+    description: 'OpenAI: High-context legacy',
+    provider: 'openai'
+  },
+  {
+    id: 'o1-preview',
+    name: 'o1 Preview',
+    description: 'OpenAI: Deep reasoning (Slow)',
+    provider: 'openai'
+  },
+  {
+    id: 'o1-mini',
+    name: 'o1 Mini',
+    description: 'OpenAI: Fast reasoning',
     provider: 'openai'
   },
   // Anthropic

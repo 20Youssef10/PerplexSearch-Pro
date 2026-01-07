@@ -12,8 +12,10 @@ import { streamGeminiCompletion } from './services/geminiService';
 import { streamOpenAICompletion } from './services/openaiService';
 import { streamAnthropicCompletion } from './services/anthropicService';
 import { DEFAULT_MODEL, NEW_CONVERSATION_ID, MODE_PROMPTS, FOLLOW_UP_INSTRUCTION, AVAILABLE_MODELS, DEFAULT_WORKSPACES, DEFAULT_GEMS } from './constants';
-import { subscribeToAuth, getUserData, saveUserData } from './services/firebase';
+import { subscribeToAuth, getUserData, saveUserData, rtdb } from './services/firebase';
 import { User } from 'firebase/auth';
+import { ref, get, onValue } from 'firebase/database';
+import { Shield, AlertCircle, X } from 'lucide-react';
 
 const ADMIN_EMAIL = "youssef2010.mahmoud@gmail.com";
 
@@ -79,6 +81,10 @@ const App: React.FC = () => {
   });
   const [isCanvasExpanded, setIsCanvasExpanded] = useState(false);
   
+  // Admin & System State
+  const [isBanned, setIsBanned] = useState(false);
+  const [broadcast, setBroadcast] = useState<{message: string, type: 'info'|'warning'} | null>(null);
+
   const abortControllerRef = useRef<AbortController | null>(null);
   const saveTimeoutRef = useRef<any>(null);
 
@@ -99,7 +105,13 @@ const App: React.FC = () => {
   useEffect(() => {
     const unsubscribe = subscribeToAuth(async (currentUser) => {
       setUser(currentUser);
-      if (currentUser) {
+      if (currentUser && rtdb) {
+        // Check Ban Status
+        const banRef = ref(rtdb, `users/${currentUser.uid}/banned`);
+        onValue(banRef, (snapshot) => {
+           setIsBanned(snapshot.val() === true);
+        });
+
         try {
           const cloudData = await getUserData(currentUser.uid);
           if (cloudData) {
@@ -132,6 +144,20 @@ const App: React.FC = () => {
       }
     });
     return () => unsubscribe();
+  }, []);
+
+  // System Broadcast Listener
+  useEffect(() => {
+      if (rtdb) {
+          const broadcastRef = ref(rtdb, 'system/broadcast');
+          return onValue(broadcastRef, (snapshot) => {
+              if (snapshot.exists()) {
+                  setBroadcast(snapshot.val());
+              } else {
+                  setBroadcast(null);
+              }
+          });
+      }
   }, []);
 
   // Persistence Effects (Local + Cloud Debounced)
@@ -378,11 +404,6 @@ const App: React.FC = () => {
       ${FOLLOW_UP_INSTRUCTION}
     `.trim();
 
-    // Note: Temperature and TopP are read from settings.modelPreferences
-    // Since the service functions currently accept limited params, we rely on default behaviour or
-    // would need to update service signatures to pass temp/topP. 
-    // For this implementation, we focus on the Context injection above.
-
     try {
       let fullContent = '';
       const onChunk = (chunk: string, citations?: string[], usage?: Usage) => {
@@ -400,10 +421,6 @@ const App: React.FC = () => {
           }
           return copy;
         });
-
-        if (currentView === 'canvas' && chunk.length > 5) {
-           // Heuristic for canvas updates could go here
-        }
       };
 
       const messagesForApi = activeConvo.messages.filter(m => m.timestamp < assistantMsgId);
@@ -449,8 +466,31 @@ const App: React.FC = () => {
     }
   };
 
+  if (isBanned) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 text-center p-4">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl border border-red-100 dark:border-red-900/30">
+          <Shield size={48} className="mx-auto text-red-500 mb-4" />
+          <h1 className="text-2xl font-black text-gray-900 dark:text-white mb-2">Account Suspended</h1>
+          <p className="text-gray-500 dark:text-gray-400">Your access has been restricted by an administrator.</p>
+          <button onClick={() => window.location.reload()} className="mt-6 px-6 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold rounded-xl hover:opacity-90">Reload Application</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
+      
+      {/* Broadcast Banner */}
+      {broadcast && (
+        <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[60] px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 ${broadcast.type === 'warning' ? 'bg-amber-500 text-white' : 'bg-blue-600 text-white'}`}>
+           <AlertCircle size={20} />
+           <span className="font-bold text-sm">{broadcast.message}</span>
+           <button onClick={() => setBroadcast(null)} className="ml-2 hover:bg-white/20 rounded-full p-1"><X size={14}/></button>
+        </div>
+      )}
+
       {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setIsSidebarOpen(false)} />}
 
       <div className={`fixed inset-y-0 left-0 z-30 w-72 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>

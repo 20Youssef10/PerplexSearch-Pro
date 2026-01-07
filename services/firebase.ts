@@ -2,6 +2,8 @@ import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider, 
+  GithubAuthProvider,
+  OAuthProvider,
   signInWithPopup, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
@@ -67,6 +69,8 @@ if (!isPreviewEnv) {
 }
 
 const googleProvider = new GoogleAuthProvider();
+const githubProvider = new GithubAuthProvider();
+const microsoftProvider = new OAuthProvider('microsoft.com');
 
 // --- Auth Providers ---
 
@@ -80,6 +84,34 @@ export const signInWithGoogle = async () => {
     return result.user;
   } catch (error) {
     console.error("Error signing in with Google", error);
+    throw error;
+  }
+};
+
+export const signInWithGithub = async () => {
+  if (!auth) {
+    alert("Authentication is disabled in this preview environment.");
+    return null;
+  }
+  try {
+    const result = await signInWithPopup(auth, githubProvider);
+    return result.user;
+  } catch (error) {
+    console.error("Error signing in with GitHub", error);
+    throw error;
+  }
+};
+
+export const signInWithMicrosoft = async () => {
+  if (!auth) {
+    alert("Authentication is disabled in this preview environment.");
+    return null;
+  }
+  try {
+    const result = await signInWithPopup(auth, microsoftProvider);
+    return result.user;
+  } catch (error) {
+    console.error("Error signing in with Microsoft", error);
     throw error;
   }
 };

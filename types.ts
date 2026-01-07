@@ -1,4 +1,5 @@
 
+
 export interface Usage {
   prompt_tokens: number;
   completion_tokens: number;
@@ -188,10 +189,19 @@ export interface Gem {
   model?: string;
 }
 
+export interface CanvasSource {
+  id: string;
+  name: string;
+  content: string;
+  type: 'file' | 'text' | 'link';
+  isSelected: boolean;
+}
+
 export interface CanvasDocument {
   id: string;
   title: string;
   content: string;
+  sources: CanvasSource[];
   createdAt: number;
   updatedAt: number;
 }

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -62,7 +63,7 @@ const App: React.FC = () => {
   // New Features State
   const [isTemporary, setIsTemporary] = useState(false);
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>('personal');
-  const [canvasDoc, setCanvasDoc] = useState<CanvasDocument>({ id: 'default', title: '', content: '', createdAt: Date.now(), updatedAt: Date.now() });
+  const [canvasDoc, setCanvasDoc] = useState<CanvasDocument>({ id: 'default', title: '', content: '', sources: [], createdAt: Date.now(), updatedAt: Date.now() });
   const [isCanvasExpanded, setIsCanvasExpanded] = useState(false);
   
   // Admin & System State
@@ -483,7 +484,7 @@ const App: React.FC = () => {
             {currentView === 'canvas' && (
               <Canvas 
                 document={canvasDoc} 
-                onUpdate={(content) => setCanvasDoc(prev => ({ ...prev, content, updatedAt: Date.now() }))}
+                onUpdate={(updates) => setCanvasDoc(prev => ({ ...prev, ...updates }))}
                 isExpanded={isCanvasExpanded} onToggleExpand={() => setIsCanvasExpanded(!isCanvasExpanded)}
                 onClose={() => setCurrentView('chat')}
               />

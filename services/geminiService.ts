@@ -1,6 +1,45 @@
 
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { Message, Attachment, Usage } from '../types';
+
+export const generateAudioOverview = async (sourcesContent: string, apiKey: string): Promise<string | null> => {
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const prompt = `
+    Generate an engaging, deep-dive audio overview of the following source material.
+    The format should be a dialogue between two hosts (Host A and Host B).
+    Host A is the knowledgeable expert, Host B is the curious interviewer.
+    They should discuss the key themes, connections, and implications of the text.
+    Keep it lively, conversational, and under 3 minutes.
+    
+    SOURCE MATERIAL:
+    ${sourcesContent.substring(0, 30000)} 
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: { parts: [{ text: prompt }] },
+      config: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+            multiSpeakerVoiceConfig: {
+              speakerVoiceConfigs: [
+                    { speaker: 'R', voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+                    { speaker: 'S', voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } }
+              ]
+            }
+        }
+      }
+    });
+
+    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+  } catch (e) {
+    console.error("Audio Overview Generation Failed", e);
+    throw e;
+  }
+};
 
 export const streamGeminiCompletion = async (
   messages: Message[],

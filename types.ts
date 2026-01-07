@@ -41,8 +41,30 @@ export interface ArenaComparison {
   winner?: 'modelA' | 'modelB' | 'tie';
 }
 
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  answer: string;
+  explanation?: string;
+}
+
+export interface QuizData {
+  title: string;
+  questions: QuizQuestion[];
+}
+
+export interface Flashcard {
+  front: string;
+  back: string;
+}
+
+export interface FlashcardDeck {
+  title: string;
+  cards: Flashcard[];
+}
+
 export interface Message {
-  role: 'user' | 'assistant' | 'system' | 'arena'; // Added arena
+  role: 'user' | 'assistant' | 'system' | 'arena'; 
   content: string;
   timestamp: number;
   citations?: string[];
@@ -58,8 +80,10 @@ export interface Message {
   audioData?: string; // Base64 audio
   slidesData?: Slide[];
   youtubeData?: YouTubeVideo[];
-  chartData?: ChartData; // For Analyst Mode
-  arenaComparison?: ArenaComparison; // For Arena Mode
+  chartData?: ChartData; 
+  arenaComparison?: ArenaComparison;
+  quizData?: QuizData; // New
+  flashcardsData?: FlashcardDeck; // New
 }
 
 export interface Folder {
@@ -81,7 +105,7 @@ export interface Conversation {
   tags?: string[]; // Knowledge Graph tags
 }
 
-export type SearchMode = 'concise' | 'copilot' | 'academic' | 'writing' | 'deep-research' | 'youtube' | 'presentation' | 'analyst' | 'arena';
+export type SearchMode = 'concise' | 'copilot' | 'academic' | 'writing' | 'deep-research' | 'youtube' | 'presentation' | 'analyst' | 'arena' | 'quiz' | 'flashcards';
 
 export type AppLanguage = 'en' | 'es' | 'fr' | 'de' | 'ja' | 'zh';
 

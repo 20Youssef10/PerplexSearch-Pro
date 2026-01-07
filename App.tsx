@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -278,7 +279,7 @@ const App: React.FC = () => {
        return;
     }
 
-    // 3. Normal Execution (Analyst, Doc, etc.)
+    // 3. Normal Execution (Analyst, Doc, Quiz, Flashcards, etc.)
     const modelConfig = AVAILABLE_MODELS.find(m => m.id === settings.model);
     const provider = modelConfig?.provider || 'perplexity';
     let apiKey = settings.apiKey;
@@ -298,11 +299,11 @@ const App: React.FC = () => {
     });
 
     const combinedSystem = `
-      ${MODE_PROMPTS[searchMode]}
+      ${MODE_PROMPTS[searchMode] || MODE_PROMPTS.concise}
       ${settings.systemInstruction}
       RESEARCH CONTEXT: ${settings.projectContext}
       ${currentView === 'canvas' ? `CANVAS MODE. Current doc:\n${canvasDoc.content}` : ''}
-      ${searchMode !== 'presentation' && searchMode !== 'analyst' ? FOLLOW_UP_INSTRUCTION : ''}
+      ${searchMode !== 'presentation' && searchMode !== 'analyst' && searchMode !== 'quiz' && searchMode !== 'flashcards' ? FOLLOW_UP_INSTRUCTION : ''}
     `.trim();
 
     try {
@@ -339,37 +340,55 @@ const App: React.FC = () => {
       else if (provider === 'anthropic') await streamAnthropicCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
       else if (provider === 'ollama') await streamOllamaCompletion(messagesForApi, settings.model, settings.ollamaBaseUrl, onChunk, signal, combinedSystem);
 
-      // Post-Processing for Analyst/Slides
+      // Post-Processing for Analyst/Slides/Quiz/Flashcards
       setConversations(prev => {
         const copy = [...prev];
         const target = copy.find(c => c.id === tempId);
         if (target) {
            const lastMsg = target.messages[target.messages.length - 1];
            
-           if (searchMode === 'presentation' || fullContent.includes('"slides":')) {
-             try {
-                const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                   const data = JSON.parse(jsonMatch[0]);
-                   if (data.slides) {
-                      lastMsg.type = 'slides';
-                      lastMsg.slidesData = data.slides;
-                      lastMsg.content = ""; 
-                   }
-                }
-             } catch(e) {}
-           }
-           if (searchMode === 'analyst' || fullContent.includes('"type": "bar"')) {
-              try {
+           try {
+              if (searchMode === 'presentation' || fullContent.includes('"slides":')) {
+                  const jsonMatch = fullContent.match(/\{[\s\S]*"slides"[\s\S]*\}/);
+                  if (jsonMatch) {
+                      const data = JSON.parse(jsonMatch[0]);
+                      if (data.slides) {
+                          lastMsg.type = 'slides';
+                          lastMsg.slidesData = data.slides;
+                          lastMsg.content = ""; 
+                      }
+                  }
+              } else if (searchMode === 'analyst' || fullContent.includes('"type": "bar"')) {
                   const jsonMatch = fullContent.match(/\{[\s\S]*"type"[\s\S]*\}/);
                   if (jsonMatch) {
                       const data = JSON.parse(jsonMatch[0]);
                       if (data.type && data.data) {
                           lastMsg.chartData = data;
-                          // Keep text explanation if it exists outside JSON
                       }
                   }
-              } catch (e) {}
+              } else if (searchMode === 'quiz' || fullContent.includes('"questions":')) {
+                  const jsonMatch = fullContent.match(/\{[\s\S]*"questions"[\s\S]*\}/);
+                  if (jsonMatch) {
+                      const data = JSON.parse(jsonMatch[0]);
+                      if (data.questions) {
+                          lastMsg.type = 'quiz';
+                          lastMsg.quizData = data;
+                          lastMsg.content = ""; // Hide raw JSON
+                      }
+                  }
+              } else if (searchMode === 'flashcards' || fullContent.includes('"cards":')) {
+                  const jsonMatch = fullContent.match(/\{[\s\S]*"cards"[\s\S]*\}/);
+                  if (jsonMatch) {
+                      const data = JSON.parse(jsonMatch[0]);
+                      if (data.cards) {
+                          lastMsg.type = 'flashcards';
+                          lastMsg.flashcardsData = data;
+                          lastMsg.content = ""; // Hide raw JSON
+                      }
+                  }
+              }
+           } catch (e) {
+             console.warn("JSON parsing failed in post-processing", e);
            }
         }
         return copy;
@@ -393,14 +412,14 @@ const App: React.FC = () => {
   if (isBanned) return <div className="h-screen flex items-center justify-center">Account Suspended</div>;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-screen md:h-screen h-[100dvh] overflow-hidden bg-gray-50 dark:bg-gray-900">
       {broadcast && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 ${broadcast.type === 'warning' ? 'bg-amber-500' : 'bg-blue-600'} text-white`}>
            <AlertCircle size={20} /> <span className="font-bold text-sm">{broadcast.message}</span> <button onClick={() => setBroadcast(null)}><X size={14}/></button>
         </div>
       )}
-      {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setIsSidebarOpen(false)} />}
-      <div className={`fixed inset-y-0 left-0 z-30 w-72 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />}
+      <div className={`fixed inset-y-0 left-0 z-30 w-72 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         <Sidebar 
           conversations={conversations.filter(c => c.workspaceId === currentWorkspaceId || !c.workspaceId)}
           folders={folders.filter(f => f.workspaceId === currentWorkspaceId || !f.workspaceId)}

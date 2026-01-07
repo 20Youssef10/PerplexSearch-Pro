@@ -6,8 +6,8 @@ import rehypeKatex from 'rehype-katex';
 import mermaid from 'mermaid';
 import { LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import PptxGenJS from 'pptxgenjs';
-import { Message, Slide, YouTubeVideo, ChartData } from '../types';
-import { Bot, User, Copy, Check, ExternalLink, Volume2, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard, Play, MonitorPlay, ListMusic, X, Download, Swords, Award } from 'lucide-react';
+import { Message, Slide, YouTubeVideo, ChartData, QuizData, FlashcardDeck } from '../types';
+import { Bot, User, Copy, Check, ExternalLink, Volume2, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard, Play, MonitorPlay, ListMusic, X, Download, Swords, Award, RotateCcw } from 'lucide-react';
 import { AVAILABLE_MODELS } from '../constants';
 
 interface MessageListProps {
@@ -25,6 +25,127 @@ const formatTime = (timestamp: number) => {
 };
 
 // --- Sub-components ---
+
+const QuizCard: React.FC<{ quiz: QuizData }> = ({ quiz }) => {
+  const [current, setCurrent] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const [score, setScore] = useState(0);
+
+  const question = quiz.questions[current];
+
+  const handleSelect = (idx: number) => {
+    if (showAnswer) return;
+    setSelected(idx);
+    setShowAnswer(true);
+    if (question.options[idx] === question.answer) {
+      setScore(s => s + 1);
+    }
+  };
+
+  const nextQuestion = () => {
+    if (current < quiz.questions.length - 1) {
+      setCurrent(c => c + 1);
+      setSelected(null);
+      setShowAnswer(false);
+    }
+  };
+
+  return (
+    <div className="my-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+      <div className="bg-brand-50 dark:bg-brand-900/20 p-4 border-b border-brand-100 dark:border-brand-800 flex justify-between items-center">
+         <h3 className="font-bold text-brand-700 dark:text-brand-300 flex items-center gap-2"><Award size={18}/> {quiz.title}</h3>
+         <span className="text-xs font-bold text-gray-500">Score: {score}/{quiz.questions.length}</span>
+      </div>
+      <div className="p-6">
+         <div className="mb-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Question {current + 1} of {quiz.questions.length}</div>
+         <h4 className="text-lg font-bold mb-6 text-gray-800 dark:text-gray-100">{question.question}</h4>
+         <div className="space-y-3">
+           {question.options.map((opt, i) => {
+             let bg = 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600';
+             if (showAnswer) {
+               if (opt === question.answer) bg = 'bg-green-100 dark:bg-green-900/30 border-green-500 text-green-700 dark:text-green-300';
+               else if (selected === i) bg = 'bg-red-100 dark:bg-red-900/30 border-red-500 text-red-700 dark:text-red-300';
+               else bg = 'opacity-50';
+             }
+             
+             return (
+               <button 
+                 key={i} 
+                 onClick={() => handleSelect(i)}
+                 disabled={showAnswer}
+                 className={`w-full text-left p-4 rounded-xl border border-transparent transition-all font-medium ${bg}`}
+               >
+                 <span className="mr-3 font-bold opacity-50">{String.fromCharCode(65 + i)}.</span>
+                 {opt}
+               </button>
+             );
+           })}
+         </div>
+         {showAnswer && (
+           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800">
+             <p className="text-sm text-blue-800 dark:text-blue-200 font-medium">
+               <strong>Explanation:</strong> {question.explanation || "No explanation provided."}
+             </p>
+           </div>
+         )}
+      </div>
+      <div className="p-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+        <button 
+          onClick={nextQuestion} 
+          disabled={!showAnswer || current === quiz.questions.length - 1}
+          className="px-6 py-2 bg-brand-600 text-white rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-700"
+        >
+          {current === quiz.questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const FlashcardDeckView: React.FC<{ deck: FlashcardDeck }> = ({ deck }) => {
+  const [current, setCurrent] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+
+  const nextCard = () => {
+    setFlipped(false);
+    setTimeout(() => setCurrent(c => (c + 1) % deck.cards.length), 200);
+  };
+
+  const prevCard = () => {
+    setFlipped(false);
+    setTimeout(() => setCurrent(c => (c - 1 + deck.cards.length) % deck.cards.length), 200);
+  };
+
+  return (
+    <div className="my-4">
+      <h3 className="text-center font-bold text-gray-500 uppercase tracking-widest text-xs mb-4">{deck.title} ({current + 1}/{deck.cards.length})</h3>
+      <div 
+        className="relative h-64 w-full perspective-1000 group cursor-pointer"
+        onClick={() => setFlipped(!flipped)}
+      >
+        <div className={`relative w-full h-full text-center transition-transform duration-500 transform-style-3d ${flipped ? 'rotate-y-180' : ''}`}>
+           {/* Front */}
+           <div className="absolute inset-0 backface-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm flex flex-col items-center justify-center p-8">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Front</span>
+              <p className="text-xl md:text-2xl font-medium text-gray-800 dark:text-gray-100">{deck.cards[current].front}</p>
+              <span className="absolute bottom-4 text-xs text-gray-400">Click to flip</span>
+           </div>
+           {/* Back */}
+           <div className="absolute inset-0 backface-hidden rotate-y-180 bg-brand-50 dark:bg-brand-900/20 border border-brand-100 dark:border-brand-800 rounded-2xl shadow-sm flex flex-col items-center justify-center p-8">
+              <span className="text-xs font-bold text-brand-500 uppercase tracking-widest mb-4">Back</span>
+              <p className="text-lg md:text-xl font-medium text-brand-900 dark:text-brand-100">{deck.cards[current].back}</p>
+           </div>
+        </div>
+      </div>
+      <div className="flex justify-center gap-4 mt-6">
+         <button onClick={prevCard} className="px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 font-bold text-sm">Previous</button>
+         <button onClick={() => setFlipped(!flipped)} className="px-4 py-2 bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 rounded-lg hover:bg-brand-200 font-bold text-sm flex items-center gap-2"><RotateCcw size={14}/> Flip</button>
+         <button onClick={nextCard} className="px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 font-bold text-sm">Next</button>
+      </div>
+    </div>
+  );
+};
 
 const CodeRunner: React.FC<{ code: string; language: string }> = ({ code, language }) => {
   const [showPreview, setShowPreview] = useState(false);
@@ -250,6 +371,12 @@ export const MessageList: React.FC<MessageListProps> = ({
               {msg.slidesData && <SlideDeck slides={msg.slidesData} />}
               
               {msg.chartData && <DataChart chart={msg.chartData} />}
+
+              {/* NEW: Quiz Rendering */}
+              {msg.quizData && <QuizCard quiz={msg.quizData} />}
+
+              {/* NEW: Flashcards Rendering */}
+              {msg.flashcardsData && <FlashcardDeckView deck={msg.flashcardsData} />}
 
               {thought && (
                  <div className="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden">

@@ -3,7 +3,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { 
   ArrowUp, Globe, BookOpen, PenTool, Layout, Mic, 
   MicOff, Square, Sparkles, X, ChevronRight, Paperclip, FileText,
-  Image as ImageIcon, Youtube, MonitorPlay, BarChart3, Swords
+  Image as ImageIcon, Youtube, MonitorPlay, BarChart3, Swords, Plus,
+  GraduationCap, Layers
 } from 'lucide-react';
 import { SearchMode } from '../types';
 import { PROMPT_TEMPLATES } from '../constants';
@@ -32,6 +33,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isListening, setIsListening] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showTools, setShowTools] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
 
   useEffect(() => {
@@ -58,6 +60,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
 
     onSubmit(undefined, attachedFiles);
     setAttachedFiles([]);
+    setShowTools(false);
   };
 
   const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -85,25 +88,29 @@ export const SearchInput: React.FC<SearchInputProps> = ({
     recognition.start();
   };
 
-  const modes: { id: SearchMode; icon: React.ReactNode; label: string }[] = [
-    { id: 'concise', icon: <Globe size={14} />, label: 'Standard' },
-    { id: 'academic', icon: <BookOpen size={14} />, label: 'Academic' },
-    { id: 'copilot', icon: <Layout size={14} />, label: 'Assistant' },
-    { id: 'youtube', icon: <Youtube size={14} />, label: 'Video' },
-    { id: 'analyst', icon: <BarChart3 size={14} />, label: 'Analyst' },
-    { id: 'arena', icon: <Swords size={14} />, label: 'Arena' },
-    { id: 'presentation', icon: <MonitorPlay size={14} />, label: 'Slides' },
+  const modes: { id: SearchMode; icon: React.ReactNode; label: string; description: string }[] = [
+    { id: 'concise', icon: <Globe size={18} />, label: 'Standard', description: 'Fast, concise answers' },
+    { id: 'academic', icon: <BookOpen size={18} />, label: 'Academic', description: 'Citations & deep research' },
+    { id: 'copilot', icon: <Layout size={18} />, label: 'Assistant', description: 'Step-by-step problem solving' },
+    { id: 'youtube', icon: <Youtube size={18} />, label: 'Video', description: 'Search YouTube videos' },
+    { id: 'analyst', icon: <BarChart3 size={18} />, label: 'Analyst', description: 'Data visualization & analysis' },
+    { id: 'arena', icon: <Swords size={18} />, label: 'Arena', description: 'Compare AI models side-by-side' },
+    { id: 'presentation', icon: <MonitorPlay size={18} />, label: 'Slides', description: 'Generate presentations' },
+    { id: 'quiz', icon: <GraduationCap size={18} />, label: 'Quiz Maker', description: 'Generate interactive quizzes' },
+    { id: 'flashcards', icon: <Layers size={18} />, label: 'Flashcards', description: 'Create study flashcards' },
   ];
+
+  const activeMode = modes.find(m => m.id === searchMode) || modes[0];
 
   return (
     <div className="w-full relative">
+      {/* Templates Popover */}
       {showTemplates && (
         <div className="absolute bottom-full left-0 mb-4 w-full md:w-96 bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-in slide-in-from-bottom-5">
-           {/* Template UI - kept same */}
            <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
              <div className="flex items-center gap-2">
                 <Sparkles size={16} className="text-amber-500" />
-                <span className="text-xs font-black text-gray-700 dark:text-gray-200 uppercase tracking-wider">Expert Prompt Templates</span>
+                <span className="text-xs font-black text-gray-700 dark:text-gray-200 uppercase tracking-wider">Prompt Templates</span>
              </div>
              <button onClick={() => setShowTemplates(false)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full">
                <X size={16} />
@@ -126,6 +133,42 @@ export const SearchInput: React.FC<SearchInputProps> = ({
                    ))}
                  </div>
                </div>
+             ))}
+           </div>
+        </div>
+      )}
+
+      {/* Tools / Modes Popover */}
+      {showTools && (
+        <div className="absolute bottom-full right-0 mb-4 w-full md:w-[480px] bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-in slide-in-from-bottom-5">
+           <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
+             <div className="flex items-center gap-2">
+                <Plus size={16} className="text-brand-500" />
+                <span className="text-xs font-black text-gray-700 dark:text-gray-200 uppercase tracking-wider">Research Tools & Modes</span>
+             </div>
+             <button onClick={() => setShowTools(false)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full">
+               <X size={16} />
+             </button>
+           </div>
+           <div className="p-3 grid grid-cols-2 gap-2 max-h-[400px] overflow-y-auto">
+             {modes.map((mode) => (
+               <button
+                 key={mode.id}
+                 onClick={() => { setSearchMode(mode.id); setShowTools(false); }}
+                 className={`flex items-start gap-3 p-3 rounded-xl transition-all border text-left ${
+                   searchMode === mode.id
+                     ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-500 ring-1 ring-brand-500'
+                     : 'bg-white dark:bg-gray-800 border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                 }`}
+               >
+                 <div className={`mt-0.5 p-2 rounded-lg ${searchMode === mode.id ? 'bg-brand-100 text-brand-600' : 'bg-gray-100 dark:bg-gray-700 text-gray-500'}`}>
+                   {mode.icon}
+                 </div>
+                 <div>
+                   <h4 className={`text-sm font-bold ${searchMode === mode.id ? 'text-brand-700 dark:text-brand-400' : 'text-gray-900 dark:text-gray-100'}`}>{mode.label}</h4>
+                   <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight mt-1">{mode.description}</p>
+                 </div>
+               </button>
              ))}
            </div>
         </div>
@@ -159,15 +202,30 @@ export const SearchInput: React.FC<SearchInputProps> = ({
           onKeyDown={handleKeyDown}
           placeholder={isListening ? "Listening..." : "Deep research, data analysis, or documents..."}
           rows={1}
-          className="w-full p-5 pr-40 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-none outline-none max-h-[150px] overflow-y-auto font-medium"
+          className="w-full p-5 pr-20 md:pr-40 pb-16 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-none outline-none max-h-[150px] overflow-y-auto font-medium"
         />
         
+        {/* Active Mode Indicator (Bottom Left inside Input) */}
+        <div className="absolute bottom-4 left-5 flex items-center gap-2 z-10">
+           <button onClick={() => setShowTools(!showTools)} className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors group">
+              <span className="text-brand-600 dark:text-brand-400">{activeMode.icon}</span>
+              <span className="hidden md:inline text-xs font-bold text-gray-600 dark:text-gray-300">{activeMode.label}</span>
+           </button>
+           {searchMode !== 'concise' && (
+             <button onClick={() => setSearchMode('concise')} className="p-1 text-gray-400 hover:text-red-500" title="Reset to Standard">
+               <X size={12} />
+             </button>
+           )}
+        </div>
+
+        {/* Controls (Bottom Right inside Input) */}
         <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
            <input type="file" ref={fileInputRef} hidden multiple onChange={handleFileAttach} />
+           
            <button
              onClick={() => fileInputRef.current?.click()}
              className="hidden sm:block p-2.5 rounded-2xl text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-all"
-             title="Attach File (PDF, CSV, Images)"
+             title="Attach File"
            >
              <Paperclip size={20} />
            </button>
@@ -181,11 +239,23 @@ export const SearchInput: React.FC<SearchInputProps> = ({
            >
              <Sparkles size={20} />
            </button>
+           
+           <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>
+
+           <button
+             onClick={() => setShowTools(!showTools)}
+             className={`p-2.5 rounded-2xl transition-all ${
+               showTools ? 'bg-brand-100 text-brand-600' : 'text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20'
+             }`}
+             title="Add Tool / Change Mode"
+           >
+             <Plus size={20} />
+           </button>
 
            {!isLoading && (
             <button
               onClick={toggleVoiceInput}
-              className={`p-2.5 rounded-2xl transition-all ${
+              className={`p-2.5 rounded-2xl transition-all hidden md:block ${
                 isListening 
                   ? 'bg-red-100 text-red-600 animate-pulse' 
                   : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -215,24 +285,6 @@ export const SearchInput: React.FC<SearchInputProps> = ({
               <ArrowUp size={20} />
             </button>
           )}
-        </div>
-
-        <div className="px-5 pb-4 flex items-center gap-2 overflow-x-auto no-scrollbar border-t border-gray-100/50 dark:border-gray-700/50 pt-3">
-          <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-2 select-none">Focus</span>
-          {modes.map(mode => (
-            <button
-              key={mode.id}
-              onClick={() => setSearchMode(mode.id)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 ${
-                searchMode === mode.id
-                  ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/20 ring-2 ring-brand-500/20'
-                  : 'bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
-            >
-              {mode.icon}
-              {mode.label}
-            </button>
-          ))}
         </div>
       </div>
     </div>

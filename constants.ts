@@ -42,7 +42,30 @@ export const MODE_PROMPTS: Record<string, string> = {
   Analyze it and identify trends. 
   If appropriate, output a JSON object for a chart inside a code block tagged 'json-chart'.
   Format: { "type": "bar|line|area|pie", "title": "Chart Title", "data": [{"name": "A", "value": 10}, ...], "xKey": "name", "yKeys": ["value"] }`,
-  arena: "You are a competitor in a model arena. Give your absolute best, most accurate answer."
+  arena: "You are a competitor in a model arena. Give your absolute best, most accurate answer.",
+  quiz: `You are a Quiz Generator. Create a multiple-choice quiz based on the user request.
+  RETURN JSON ONLY. The format must be exactly:
+  {
+    "title": "Quiz Title",
+    "questions": [
+      {
+        "question": "Question text?",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
+        "answer": "Option A",
+        "explanation": "Brief explanation of why this is correct."
+      }
+    ]
+  }
+  Do not include markdown formatting like \`\`\`json.`,
+  flashcards: `You are a Flashcard Generator. Create a set of flashcards based on the user request.
+  RETURN JSON ONLY. The format must be exactly:
+  {
+    "title": "Deck Title",
+    "cards": [
+      { "front": "Term or Question", "back": "Definition or Answer" }
+    ]
+  }
+  Do not include markdown formatting like \`\`\`json.`
 };
 
 export const FOLLOW_UP_INSTRUCTION = `

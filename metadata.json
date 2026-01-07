@@ -1,0 +1,5 @@
+{
+  "name": "PerplexSearch Pro",
+  "description": "A professional AI-powered research and search engine leveraging the Perplexity API for real-time, cited answers.",
+  "requestFramePermissions": []
+}

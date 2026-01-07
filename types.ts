@@ -4,6 +4,11 @@ export interface Usage {
   total_tokens: number;
 }
 
+export interface Attachment {
+  mimeType: string;
+  data: string;
+}
+
 export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -13,6 +18,7 @@ export interface Message {
   responseTime?: number;
   usage?: Usage;
   suggestions?: string[];
+  attachments?: Attachment[];
 }
 
 export interface Folder {
@@ -35,7 +41,7 @@ export type SearchMode = 'concise' | 'copilot' | 'academic' | 'writing';
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   model: string;
-  apiKey: string;
+  apiKey: string; // Perplexity Key
   systemInstruction: string;
   projectContext: string;
 }

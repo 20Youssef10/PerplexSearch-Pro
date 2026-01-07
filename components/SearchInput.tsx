@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { ArrowUp, Loader2, Globe, BookOpen, PenTool, Layout, Mic, MicOff, Square } from 'lucide-react';
+import { ArrowUp, Globe, BookOpen, PenTool, Layout, Mic, MicOff, Square, Sparkles, X, ChevronRight } from 'lucide-react';
 import { SearchMode } from '../types';
+import { PROMPT_TEMPLATES } from '../constants';
 
 interface SearchInputProps {
   input: string;
@@ -23,6 +24,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isListening, setIsListening] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -34,8 +36,13 @@ export const SearchInput: React.FC<SearchInputProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      onSubmit();
+      handleSubmit();
     }
+  };
+
+  const handleSubmit = () => {
+    if (!input.trim()) return;
+    onSubmit();
   };
 
   const toggleVoiceInput = () => {
@@ -74,10 +81,48 @@ export const SearchInput: React.FC<SearchInputProps> = ({
   ];
 
   return (
-    <div className="w-full">
+    <div className="w-full relative">
+      {showTemplates && (
+        <div className="absolute bottom-full left-0 mb-4 w-full md:w-96 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-in slide-in-from-bottom-5">
+           <div className="flex items-center justify-between p-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+             <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-amber-500" />
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Prompt Library</span>
+             </div>
+             <button onClick={() => setShowTemplates(false)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full">
+               <X size={16} />
+             </button>
+           </div>
+           <div className="max-h-[300px] overflow-y-auto p-2">
+             {PROMPT_TEMPLATES.map((cat, i) => (
+               <div key={i} className="mb-3">
+                 <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-1">{cat.category}</h4>
+                 <div className="space-y-1">
+                   {cat.prompts.map((p, j) => (
+                     <button
+                       key={j}
+                       onClick={() => {
+                         setInput(p.text);
+                         setShowTemplates(false);
+                         if (textareaRef.current) textareaRef.current.focus();
+                       }}
+                       className="w-full text-left p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-between group"
+                     >
+                       <span className="text-sm text-gray-700 dark:text-gray-300">{p.title}</span>
+                       <ChevronRight size={14} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                     </button>
+                   ))}
+                 </div>
+               </div>
+             ))}
+           </div>
+        </div>
+      )}
+
       <div className={`relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl shadow-black/5 border transition-all duration-200 overflow-hidden ${
         isListening ? 'border-red-500 ring-2 ring-red-500/20' : 'border-gray-200 dark:border-gray-700 focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-500'
       }`}>
+        
         <textarea
           ref={textareaRef}
           value={input}
@@ -85,10 +130,20 @@ export const SearchInput: React.FC<SearchInputProps> = ({
           onKeyDown={handleKeyDown}
           placeholder={isListening ? "Listening..." : "Ask anything... (Ctrl + K)"}
           rows={1}
-          className="w-full p-4 pr-24 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-none outline-none max-h-[150px] overflow-y-auto"
+          className="w-full p-4 pr-32 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-none outline-none max-h-[150px] overflow-y-auto"
         />
         
-        <div className="absolute bottom-2 right-2 flex items-center gap-2">
+        <div className="absolute bottom-2 right-2 flex items-center gap-1">
+           <button
+             onClick={() => setShowTemplates(!showTemplates)}
+             className={`p-2 rounded-xl transition-all ${
+               showTemplates ? 'bg-amber-100 text-amber-600' : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+             }`}
+             title="Prompt Templates"
+           >
+             <Sparkles size={20} />
+           </button>
+
            {!isLoading && (
             <button
               onClick={toggleVoiceInput}
@@ -106,16 +161,16 @@ export const SearchInput: React.FC<SearchInputProps> = ({
           {isLoading ? (
             <button 
               onClick={onStop}
-              className="p-2 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:opacity-80 transition-all shadow-md"
+              className="p-2 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:opacity-80 transition-all shadow-md ml-1"
               title="Stop generation"
             >
               <Square size={20} fill="currentColor" />
             </button>
           ) : (
             <button 
-              onClick={() => onSubmit()}
+              onClick={() => handleSubmit()}
               disabled={!input.trim()}
-              className={`p-2 rounded-xl transition-all ${
+              className={`p-2 rounded-xl transition-all ml-1 ${
                 input.trim()
                   ? 'bg-brand-600 text-white shadow-md hover:bg-brand-700' 
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'

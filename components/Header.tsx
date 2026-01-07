@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Settings, Moon, Sun, Menu, X, Check, Trash2, Database, Info } from 'lucide-react';
+import { Settings, Moon, Sun, Menu, X, Check, Trash2, Info, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { AppSettings } from '../types';
 import { PERPLEXITY_MODELS } from '../constants';
+import { signIn, signOut } from '../services/firebase';
+import { User } from 'firebase/auth';
 
 interface HeaderProps {
   isSidebarOpen: boolean;
@@ -9,9 +11,10 @@ interface HeaderProps {
   settings: AppSettings;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings>>;
   onClearHistory: () => void;
+  user: User | null;
 }
 
-export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar, settings, setSettings, onClearHistory }) => {
+export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar, settings, setSettings, onClearHistory, user }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<'api' | 'model' | 'context'>('api');
@@ -35,6 +38,28 @@ export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar, se
         </div>
 
         <div className="flex items-center gap-1">
+          {user ? (
+            <div className="flex items-center gap-2 mr-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full">
+               {user.photoURL ? (
+                 <img src={user.photoURL} alt="Profile" className="w-5 h-5 rounded-full" />
+               ) : (
+                 <UserIcon size={16} className="text-gray-500" />
+               )}
+               <span className="text-xs font-medium max-w-[80px] truncate">{user.displayName || 'User'}</span>
+               <button onClick={() => signOut()} title="Sign Out" className="ml-1 text-gray-400 hover:text-red-500">
+                 <LogOut size={14} />
+               </button>
+            </div>
+          ) : (
+            <button 
+              onClick={() => signIn()}
+              className="flex items-center gap-1.5 mr-2 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-full text-xs font-bold transition-colors"
+            >
+              <LogIn size={14} />
+              <span>Sign In</span>
+            </button>
+          )}
+
           <button 
             onClick={() => setSettings({...settings, theme: settings.theme === 'dark' ? 'light' : 'dark'})}
             className="p-2 text-gray-400 hover:text-brand-600 transition-colors"
@@ -66,14 +91,14 @@ export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar, se
             <div className="flex border-b border-gray-100 dark:border-gray-800">
                <button onClick={() => setActiveTab('api')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'api' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-gray-400 hover:text-gray-600'}`}>General</button>
                <button onClick={() => setActiveTab('model')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'model' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-gray-400 hover:text-gray-600'}`}>Model</button>
-               <button onClick={() => setActiveTab('context')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'context' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-gray-400 hover:text-gray-600'}`}>Project Context</button>
+               <button onClick={() => setActiveTab('context')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'context' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-gray-400 hover:text-gray-600'}`}>Context</button>
             </div>
 
             <div className="p-6 space-y-6 overflow-y-auto">
               {activeTab === 'api' && (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase">API Access</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Perplexity API Key</label>
                     <input 
                       type="password" 
                       value={settings.apiKey}

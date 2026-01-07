@@ -5,7 +5,9 @@ import { MessageList } from './components/MessageList';
 import { SearchInput } from './components/SearchInput';
 import { Message, Conversation, Folder, SearchMode, AppSettings } from './types';
 import { streamCompletion } from './services/perplexityService';
-import { DEFAULT_MODEL, NEW_CONVERSATION_ID, PERPLEXITY_MODELS, MODE_PROMPTS, FOLLOW_UP_INSTRUCTION } from './constants';
+import { DEFAULT_MODEL, NEW_CONVERSATION_ID, MODE_PROMPTS, FOLLOW_UP_INSTRUCTION } from './constants';
+import { subscribeToAuth, getUserData, saveUserData } from './services/firebase';
+import { User } from 'firebase/auth';
 
 const App: React.FC = () => {
   // Persistence
@@ -32,6 +34,7 @@ const App: React.FC = () => {
   });
 
   // UI State
+  const [user, setUser] = useState<User | null>(null);
   const [currentId, setCurrentId] = useState<string>(NEW_CONVERSATION_ID);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -39,6 +42,7 @@ const App: React.FC = () => {
   const [searchMode, setSearchMode] = useState<SearchMode>('concise');
   
   const abortControllerRef = useRef<AbortController | null>(null);
+  const saveTimeoutRef = useRef<any>(null);
 
   // Derived State
   const currentConversation = conversations.find(c => c.id === currentId) || {
@@ -51,23 +55,72 @@ const App: React.FC = () => {
 
   const messages = currentConversation.messages;
 
-  // Effects
+  // Firebase Auth & Sync Effect
   useEffect(() => {
+    // Use wrapper to safely handle auth state changes (safe for dev envs where auth is disabled)
+    const unsubscribe = subscribeToAuth(async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        // User logged in: Fetch data
+        try {
+          const cloudData = await getUserData(currentUser.uid);
+          if (cloudData) {
+            // If data exists in cloud, use it (Simple strategy: Cloud wins on login)
+            if (cloudData.conversations) setConversations(cloudData.conversations);
+            if (cloudData.folders) setFolders(cloudData.folders);
+            if (cloudData.settings) {
+              // Merge API key if local is empty but cloud has one, or user preference
+              setSettings(prev => ({
+                ...cloudData.settings,
+                apiKey: prev.apiKey || cloudData.settings.apiKey // Prefer local API key if set to avoid overwriting with potentially stale or empty cloud key during dev
+              }));
+            }
+          } else {
+            // First time cloud user: Sync local data to cloud
+            saveUserData(currentUser.uid, {
+              conversations,
+              folders,
+              settings
+            });
+          }
+        } catch (e) {
+          console.error("Failed to sync with cloud", e);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Persistence Effects (Local + Cloud Debounced)
+  const persistData = () => {
     localStorage.setItem('conversations', JSON.stringify(conversations));
-  }, [conversations]);
-
-  useEffect(() => {
     localStorage.setItem('folders', JSON.stringify(folders));
-  }, [folders]);
+    localStorage.setItem('app_settings', JSON.stringify(settings));
+
+    // Debounced Cloud Save
+    if (user) {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        saveUserData(user.uid, {
+          conversations,
+          folders,
+          settings
+        });
+      }, 2000); // 2 second debounce
+    }
+  };
 
   useEffect(() => {
-    localStorage.setItem('app_settings', JSON.stringify(settings));
+    persistData();
+  }, [conversations, folders, settings, user]);
+
+  useEffect(() => {
     if (settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, [settings]);
+  }, [settings.theme]);
 
   // Handlers
   const handleNewChat = () => {
@@ -94,6 +147,9 @@ const App: React.FC = () => {
     setFolders([]);
     setCurrentId(NEW_CONVERSATION_ID);
     localStorage.clear();
+    if (user) {
+      saveUserData(user.uid, { conversations: [], folders: [] });
+    }
   };
 
   const handleStopGeneration = () => {
@@ -104,7 +160,7 @@ const App: React.FC = () => {
   const handleSuggestionClick = (text: string) => {
     if (isLoading) return;
     setInput(text);
-    handleSubmit(undefined, text);
+    handleSubmit(undefined, text); // Pass text as override
   };
 
   const parseSuggestions = (content: string): { suggestions: string[], cleanContent: string } => {
@@ -154,13 +210,17 @@ const App: React.FC = () => {
     if (!query || isLoading) return;
 
     if (!settings.apiKey) {
-      alert("Please configure your API Key in settings.");
+      alert("Please configure your Perplexity API Key in settings.");
       return;
     }
 
-    const userMsg: Message = { role: 'user', content: query, timestamp: Date.now() };
+    const userMsg: Message = { 
+        role: 'user', 
+        content: query, 
+        timestamp: Date.now()
+    };
+    
     const tempId = currentId === NEW_CONVERSATION_ID ? Date.now().toString() : currentId;
-    const isNew = currentId === NEW_CONVERSATION_ID;
 
     // Convo Setup
     let updatedConversations = [...conversations];
@@ -217,28 +277,31 @@ const App: React.FC = () => {
 
     try {
       let fullContent = '';
-      await streamCompletion(
-        activeConvo.messages.filter(m => m.timestamp < assistantMsgId),
-        settings.model,
-        settings.apiKey,
-        (chunk, citations, usage) => {
-          fullContent += chunk;
-          setConversations(prev => {
-            const copy = [...prev];
-            const target = copy.find(c => c.id === tempId);
-            if (target) {
-              const lastMsg = target.messages[target.messages.length - 1];
-              if (lastMsg.role === 'assistant') {
-                lastMsg.content = fullContent;
-                if (citations) lastMsg.citations = citations;
-                if (usage) lastMsg.usage = usage;
-              }
+      
+      const onChunk = (chunk: string, citations?: string[], usage?: any) => {
+        fullContent += chunk;
+        setConversations(prev => {
+          const copy = [...prev];
+          const target = copy.find(c => c.id === tempId);
+          if (target) {
+            const lastMsg = target.messages[target.messages.length - 1];
+            if (lastMsg.role === 'assistant') {
+              lastMsg.content = fullContent;
+              if (citations) lastMsg.citations = citations;
+              if (usage) lastMsg.usage = usage;
             }
-            return copy;
-          });
-        },
-        abortControllerRef.current.signal,
-        combinedSystem
+          }
+          return copy;
+        });
+      };
+
+      await streamCompletion(
+          activeConvo.messages.filter(m => m.timestamp < assistantMsgId),
+          settings.model,
+          settings.apiKey,
+          onChunk,
+          abortControllerRef.current.signal,
+          combinedSystem
       );
 
       // Post-process response to extract suggestions
@@ -298,6 +361,7 @@ const App: React.FC = () => {
         <Header 
           isSidebarOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           settings={settings} setSettings={setSettings} onClearHistory={handleClearHistory}
+          user={user}
         />
 
         <main className="flex-1 overflow-y-auto">
@@ -311,7 +375,7 @@ const App: React.FC = () => {
                 <p className="text-gray-500 dark:text-gray-400 text-lg">AI-powered deep research engine with cited knowledge.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-xl mx-auto pt-4">
                    {["The future of AI agents in 2025", "Latest findings in deep space exploration", "Explain quantum computing visually", "Top open source alternatives to popular SaaS"].map(q => (
-                     <button key={q} onClick={() => setInput(q)} className="p-4 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/10 transition-all text-sm text-left font-medium text-gray-600 dark:text-gray-300">
+                     <button key={q} onClick={() => { setInput(q); handleSubmit(undefined, q); }} className="p-4 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/10 transition-all text-sm text-left font-medium text-gray-600 dark:text-gray-300">
                        {q}
                      </button>
                    ))}

@@ -2,6 +2,7 @@ export const DEFAULT_MODEL = 'sonar';
 export const NEW_CONVERSATION_ID = 'new';
 
 export const PERPLEXITY_MODELS = [
+  // Perplexity Models
   { 
     id: 'sonar', 
     name: 'Sonar', 
@@ -13,15 +14,15 @@ export const PERPLEXITY_MODELS = [
     description: 'High intelligence and reasoning. Best for research and complex queries.' 
   },
   { 
+    id: 'sonar-reasoning', 
+    name: 'Sonar Reasoning', 
+    description: 'Advanced reasoning capabilities for complex tasks.' 
+  },
+  { 
     id: 'sonar-reasoning-pro', 
     name: 'Sonar Reasoning Pro', 
     description: 'Specialized in chain-of-thought reasoning. Best for math and logic.' 
-  },
-  { 
-    id: 'r1-1776', 
-    name: 'DeepSeek R1', 
-    description: 'Powerful open-source model optimized for complex tasks (Llama 70B based).' 
-  },
+  }
 ];
 
 export const MODE_PROMPTS: Record<string, string> = {
@@ -43,3 +44,30 @@ Format them exactly like this:
 `;
 
 export const API_ENDPOINT = 'https://api.perplexity.ai/chat/completions';
+
+export const PROMPT_TEMPLATES = [
+  {
+    category: 'Analysis',
+    prompts: [
+      { title: 'SWOT Analysis', text: 'Conduct a detailed SWOT analysis for [Company/Product].' },
+      { title: 'Root Cause', text: 'Analyze the root cause of [Problem] using the 5 Whys method.' },
+      { title: 'Market Research', text: 'Provide a comprehensive market analysis for [Industry/Topic], including key trends and competitors.' },
+    ]
+  },
+  {
+    category: 'Coding',
+    prompts: [
+      { title: 'Code Review', text: 'Review this code for best practices, security vulnerabilities, and performance optimizations:\n\n' },
+      { title: 'Explain Code', text: 'Explain how this code works step-by-step to a junior developer:\n\n' },
+      { title: 'Unit Tests', text: 'Generate comprehensive unit tests for the following function, covering edge cases:\n\n' },
+    ]
+  },
+  {
+    category: 'Writing',
+    prompts: [
+      { title: 'Blog Post', text: 'Write an engaging technical blog post about [Topic] targeting [Audience].' },
+      { title: 'Email Polish', text: 'Rewrite this email to be more professional and concise:\n\n' },
+      { title: 'Executive Summary', text: 'Summarize the following text into a one-paragraph executive summary:\n\n' },
+    ]
+  }
+];

@@ -401,8 +401,8 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
           </div>
-        )}
-      </header>
+        </div>
+      )}
     </>
   );
 };

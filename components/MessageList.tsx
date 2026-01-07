@@ -1,14 +1,18 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { Message } from '../types';
-import { Bot, User, Copy, Check, ExternalLink, Volume2, VolumeX, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard } from 'lucide-react';
+import { Bot, User, Copy, Check, ExternalLink, Volume2, VolumeX, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard, Pin } from 'lucide-react';
 import { AVAILABLE_MODELS } from '../constants';
 
 interface MessageListProps {
   messages: Message[];
   onSuggestionClick: (text: string) => void;
+  onPinMessage?: (index: number) => void;
+  codeWrapping?: boolean;
+  selectedVoice?: string;
 }
 
 const CopyButton: React.FC<{ text: string }> = ({ text }) => {
@@ -79,7 +83,7 @@ const ReasoningBlock: React.FC<{ content: string }> = ({ content }) => {
   );
 };
 
-const TTSButton: React.FC<{ text: string }> = ({ text }) => {
+const TTSButton: React.FC<{ text: string, voiceURI?: string }> = ({ text, voiceURI }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
@@ -91,6 +95,13 @@ const TTSButton: React.FC<{ text: string }> = ({ text }) => {
       // Strip markdown for cleaner speech
       const cleanText = text.replace(/\[\d+\]/g, '').replace(/[*_#`]/g, '').replace(/<[^>]*>/g, '');
       const utterance = new SpeechSynthesisUtterance(cleanText);
+      
+      if (voiceURI) {
+        const voices = window.speechSynthesis.getVoices();
+        const selected = voices.find(v => v.voiceURI === voiceURI);
+        if (selected) utterance.voice = selected;
+      }
+
       utterance.onend = () => setIsPlaying(false);
       utteranceRef.current = utterance;
       window.speechSynthesis.speak(utterance);
@@ -109,7 +120,9 @@ const TTSButton: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
-export const MessageList: React.FC<MessageListProps> = ({ messages, onSuggestionClick }) => {
+export const MessageList: React.FC<MessageListProps> = ({ 
+  messages, onSuggestionClick, onPinMessage, codeWrapping = false, selectedVoice 
+}) => {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -121,11 +134,9 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, onSuggestion
   };
 
   const parseContent = (content: string) => {
-    // Regex to extract <think> block
     const thinkMatch = content.match(/<think>([\s\S]*?)(?:<\/think>|$)/);
     if (thinkMatch) {
       const thought = thinkMatch[1].trim();
-      // Remove the think block from the main content
       const main = content.replace(/<think>[\s\S]*?(?:<\/think>|$)/, '').trim();
       return { thought, main };
     }
@@ -148,19 +159,30 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, onSuggestion
               </div>
             )}
 
-            <div className={`relative group max-w-[90%] md:max-w-[85%] rounded-2xl p-4 shadow-sm ${
+            <div className={`relative group max-w-[90%] md:max-w-[85%] rounded-2xl p-4 shadow-sm transition-all ${
               msg.role === 'user' 
                 ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100' 
-                : 'bg-white dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-200'
-            }`}>
+                : 'bg-white dark:bg-gray-900/50 border text-gray-800 dark:text-gray-200'
+            } ${msg.isPinned ? 'border-brand-500 ring-1 ring-brand-500/20' : 'border-gray-100 dark:border-gray-800'}`}>
+              
+              {msg.isPinned && (
+                <div className="absolute -top-2 -right-2 bg-brand-500 text-white rounded-full p-1 shadow-sm">
+                  <Pin size={10} fill="currentColor" />
+                </div>
+              )}
+
               {msg.role === 'assistant' && (
-                 <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                   <TTSButton text={main} />
+                 <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/50 dark:bg-black/50 backdrop-blur-sm rounded-lg p-0.5">
+                   {onPinMessage && (
+                     <button onClick={() => onPinMessage(idx)} className="p-1 text-gray-400 hover:text-brand-500" title="Pin Message">
+                       <Pin size={14} className={msg.isPinned ? "fill-current text-brand-500" : ""} />
+                     </button>
+                   )}
+                   <TTSButton text={main} voiceURI={selectedVoice} />
                    <CopyButton text={main} />
                  </div>
               )}
               
-              {/* Reasoning Block for models that support it */}
               {thought && <ReasoningBlock content={thought} />}
 
               <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words overflow-hidden">
@@ -193,7 +215,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, onSuggestion
                                <CodeCopyButton text={codeString} />
                              </div>
                             <div className="bg-gray-50 dark:bg-gray-900/50 p-4 overflow-x-auto text-xs md:text-sm">
-                              <code {...props} className={className}>{children}</code>
+                              <code {...props} className={`${className} ${codeWrapping ? 'whitespace-pre-wrap break-all' : ''}`}>{children}</code>
                             </div>
                           </div>
                         ) : (

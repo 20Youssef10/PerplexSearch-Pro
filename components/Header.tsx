@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Settings, Moon, Sun, Menu, X, Check, Trash2, Info, LogIn, LogOut, User as UserIcon, Mail, UserPlus, Shield, Download, FileText, EyeOff, Share2, Github } from 'lucide-react';
-import { AppSettings } from '../types';
+
+import React, { useState, useEffect } from 'react';
+import { Settings, Moon, Sun, Menu, X, Check, Trash2, Info, LogIn, LogOut, User as UserIcon, Mail, UserPlus, Shield, Download, EyeOff, Github, UserCog, Sliders, Palette, FileCode, Volume2, Save } from 'lucide-react';
+import { AppSettings, UserProfile } from '../types';
 import { AVAILABLE_MODELS } from '../constants';
 import { signInWithGoogle, signInWithGithub, signInWithMicrosoft, signInEmail, signUpEmail, signInGuest, signOut } from '../services/firebase';
 import { User } from 'firebase/auth';
@@ -25,7 +26,8 @@ export const Header: React.FC<HeaderProps> = ({
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [activeTab, setActiveTab] = useState<'api' | 'model' | 'context'>('api');
+  const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'model' | 'api' | 'data'>('profile');
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
 
   // Auth Modal State
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -33,6 +35,29 @@ export const Header: React.FC<HeaderProps> = ({
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+
+  useEffect(() => {
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      setAvailableVoices(voices);
+    };
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }, []);
+
+  // Sync Firebase User to Profile if empty
+  useEffect(() => {
+    if (user && !settings.profile.displayName) {
+      setSettings(prev => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          displayName: user.displayName || 'User',
+          avatarUrl: user.photoURL || ''
+        }
+      }));
+    }
+  }, [user]);
 
   // Group models by provider
   const modelsByProvider = AVAILABLE_MODELS.reduce((acc, model) => {
@@ -78,8 +103,14 @@ export const Header: React.FC<HeaderProps> = ({
       await signInWithGithub();
       setShowAuthModal(false);
     } catch (err: any) {
-      const msg = err.message?.replace('Firebase: ', '') || "GitHub Sign-In failed";
-      setAuthError(msg);
+      console.error(err);
+      // Handle "Account exists with different credential" error
+      if (err.code === 'auth/account-exists-with-different-credential') {
+        setAuthError("An account with this email already exists using a different sign-in method (likely Google or Email). Please sign in with that method.");
+      } else {
+        const msg = err.message?.replace('Firebase: ', '') || "GitHub Sign-In failed";
+        setAuthError(msg);
+      }
     }
   };
 
@@ -89,8 +120,14 @@ export const Header: React.FC<HeaderProps> = ({
       await signInWithMicrosoft();
       setShowAuthModal(false);
     } catch (err: any) {
-      const msg = err.message?.replace('Firebase: ', '') || "Microsoft Sign-In failed";
-      setAuthError(msg);
+      console.error(err);
+      // Handle configuration errors (Invalid Client Secret)
+      if (err.message && err.message.includes('Invalid client secret')) {
+        setAuthError("Configuration Error: Microsoft Login is currently unavailable due to server configuration (Invalid Secret). Please use another method.");
+      } else {
+        const msg = err.message?.replace('Firebase: ', '') || "Microsoft Sign-In failed";
+        setAuthError(msg);
+      }
     }
   };
 
@@ -151,12 +188,12 @@ export const Header: React.FC<HeaderProps> = ({
 
           {user ? (
             <div className="flex items-center gap-2 mr-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700 ml-2">
-               {user.photoURL ? (
-                 <img src={user.photoURL} alt="Profile" className="w-5 h-5 rounded-full" />
+               {settings.profile.avatarUrl ? (
+                 <img src={settings.profile.avatarUrl} alt="Profile" className="w-5 h-5 rounded-full object-cover" />
                ) : (
                  <UserIcon size={16} className="text-gray-500" />
                )}
-               <span className="text-xs font-medium max-w-[80px] truncate">{user.displayName || user.email || 'Guest'}</span>
+               <span className="text-xs font-medium max-w-[80px] truncate">{settings.profile.displayName || user.email || 'Guest'}</span>
                <button onClick={() => signOut()} title="Sign Out" className="ml-1 text-gray-400 hover:text-red-500 transition-colors">
                  <LogOut size={14} />
                </button>
@@ -171,12 +208,6 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          <button 
-            onClick={() => setSettings({...settings, theme: settings.theme === 'dark' ? 'light' : 'dark'})}
-            className="p-2 text-gray-400 hover:text-brand-600 transition-colors"
-          >
-            {settings.theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
           <button 
             onClick={() => setShowSettings(true)}
             className="p-2 text-gray-400 hover:text-brand-600 transition-colors"
@@ -288,157 +319,309 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
 
+      {/* Expanded Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-200 dark:border-gray-800 flex flex-col max-h-[90vh]">
-            <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50">
-              <div className="flex items-center gap-2">
-                <Settings size={18} className="text-brand-600" />
-                <h2 className="font-semibold dark:text-white">Professional Settings</h2>
-              </div>
-              <button onClick={() => setShowSettings(false)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full dark:text-gray-400">
-                <X size={20} />
-              </button>
-            </div>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-800 flex flex-col md:flex-row">
             
-            <div className="flex border-b border-gray-100 dark:border-gray-800">
-               <button onClick={() => setActiveTab('api')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'api' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-gray-400 hover:text-gray-600'}`}>General</button>
-               <button onClick={() => setActiveTab('model')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'model' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-gray-400 hover:text-gray-600'}`}>Model</button>
-               <button onClick={() => setActiveTab('context')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === 'context' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-gray-400 hover:text-gray-600'}`}>Context</button>
-            </div>
-
-            <div className="p-6 space-y-6 overflow-y-auto">
-              {activeTab === 'api' && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Perplexity API Key</label>
-                    <input 
-                      type="password" 
-                      value={settings.apiKey}
-                      onChange={(e) => setSettings({...settings, apiKey: e.target.value})}
-                      placeholder="pplx-..."
-                      className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Google Gemini API Key</label>
-                    <input 
-                      type="password" 
-                      value={settings.googleApiKey || ''}
-                      onChange={(e) => setSettings({...settings, googleApiKey: e.target.value})}
-                      placeholder="AIza..."
-                      className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase">OpenAI API Key</label>
-                    <input 
-                      type="password" 
-                      value={settings.openaiApiKey || ''}
-                      onChange={(e) => setSettings({...settings, openaiApiKey: e.target.value})}
-                      placeholder="sk-..."
-                      className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Anthropic API Key</label>
-                    <input 
-                      type="password" 
-                      value={settings.anthropicApiKey || ''}
-                      onChange={(e) => setSettings({...settings, anthropicApiKey: e.target.value})}
-                      placeholder="sk-ant-..."
-                      className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Appearance</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(['light', 'dark', 'system'] as const).map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => setSettings({...settings, theme: t})}
-                          className={`p-2 rounded-xl border text-xs font-medium transition-all ${settings.theme === t ? 'bg-brand-50 border-brand-500 text-brand-700 dark:bg-brand-900/30' : 'border-gray-200'}`}
-                        >
-                          {t.toUpperCase()}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-800">
-                     <button onClick={() => setShowClearConfirm(true)} className="w-full text-red-500 text-xs font-bold uppercase py-2 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors">Nuclear Clear: Delete All History</button>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'model' && (
-                <div className="space-y-6">
-                  {Object.entries(modelsByProvider).map(([provider, models]) => (
-                    <div key={provider}>
-                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">{provider}</h3>
-                      <div className="space-y-2">
-                        {models.map(model => (
-                          <button
-                            key={model.id}
-                            onClick={() => setSettings({...settings, model: model.id})}
-                            className={`w-full text-left p-3 rounded-xl border transition-all flex flex-col gap-1 ${settings.model === model.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20' : 'border-gray-200 dark:border-gray-700'}`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-sm">{model.name}</span>
-                              {settings.model === model.id && <Check size={14} className="text-brand-600" />}
-                            </div>
-                            <span className="text-[10px] text-gray-500 leading-relaxed">{model.description}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {activeTab === 'context' && (
-                <div className="space-y-4">
-                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl flex gap-3">
-                    <Info size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-blue-800 dark:text-blue-300">
-                      Project Context is persistent instructions that the AI will always remember across all your searches. Ideal for setting a "Knowledge Base" for a specific project.
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Context / Knowledge Base</label>
-                    <textarea 
-                      value={settings.projectContext}
-                      onChange={(e) => setSettings({...settings, projectContext: e.target.value})}
-                      placeholder="Tell the AI about your company, current goals, or specific guidelines..."
-                      rows={8}
-                      className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {showClearConfirm && (
-              <div className="absolute inset-0 z-10 bg-white dark:bg-gray-900 flex flex-col items-center justify-center p-8 text-center">
-                 <Trash2 size={48} className="text-red-500 mb-4" />
-                 <h3 className="font-bold text-lg mb-2">Delete Everything?</h3>
-                 <p className="text-sm text-gray-500 mb-6">This action is irreversible. All conversations and folders will be gone forever.</p>
-                 <div className="flex gap-3 w-full max-w-xs">
-                    <button onClick={onClearHistory} className="flex-1 bg-red-600 text-white font-bold py-2 rounded-xl">DELETE</button>
-                    <button onClick={() => setShowClearConfirm(false)} className="flex-1 bg-gray-100 dark:bg-gray-800 font-bold py-2 rounded-xl">CANCEL</button>
-                 </div>
-              </div>
-            )}
-
-            <div className="p-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
-              <button 
-                onClick={() => setShowSettings(false)}
-                className="px-6 py-2 bg-brand-600 text-white rounded-xl font-bold text-sm hover:bg-brand-700 transition-colors"
-              >
-                Save Changes
+            {/* Sidebar Navigation */}
+            <div className="w-full md:w-64 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-100 dark:border-gray-800 p-4 flex flex-col gap-2">
+              <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest px-3 mb-2">Control Center</h2>
+              
+              <button onClick={() => setActiveTab('profile')} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'profile' ? 'bg-white dark:bg-gray-800 shadow-sm text-brand-600' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                <UserCog size={18} /> Profile & Bio
               </button>
+              <button onClick={() => setActiveTab('appearance')} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'appearance' ? 'bg-white dark:bg-gray-800 shadow-sm text-brand-600' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                <Palette size={18} /> Appearance
+              </button>
+              <button onClick={() => setActiveTab('model')} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'model' ? 'bg-white dark:bg-gray-800 shadow-sm text-brand-600' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                <Sliders size={18} /> Model Config
+              </button>
+              <button onClick={() => setActiveTab('api')} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'api' ? 'bg-white dark:bg-gray-800 shadow-sm text-brand-600' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                <FileCode size={18} /> API Keys
+              </button>
+              <button onClick={() => setActiveTab('data')} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'data' ? 'bg-white dark:bg-gray-800 shadow-sm text-brand-600' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                <Save size={18} /> Data Management
+              </button>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col min-w-0">
+               <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+                 <h2 className="text-lg font-bold dark:text-white capitalize">{activeTab.replace('api', 'API Keys')}</h2>
+                 <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full dark:text-gray-400">
+                   <X size={20} />
+                 </button>
+               </div>
+
+               <div className="flex-1 overflow-y-auto p-6">
+                 
+                 {/* PROFILE TAB */}
+                 {activeTab === 'profile' && (
+                   <div className="space-y-6 max-w-lg">
+                      <div className="flex items-center gap-4">
+                        <div className="w-20 h-20 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden border-2 border-brand-500">
+                          {settings.profile.avatarUrl ? (
+                            <img src={settings.profile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-3xl">👤</div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Avatar URL</label>
+                          <input 
+                            type="text" 
+                            value={settings.profile.avatarUrl}
+                            onChange={(e) => setSettings({...settings, profile: {...settings.profile, avatarUrl: e.target.value}})}
+                            className="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm"
+                            placeholder="https://..."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Display Name</label>
+                          <input 
+                            type="text" 
+                            value={settings.profile.displayName}
+                            onChange={(e) => setSettings({...settings, profile: {...settings.profile, displayName: e.target.value}})}
+                            className="w-full p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Job Title / Role</label>
+                          <input 
+                            type="text" 
+                            value={settings.profile.jobTitle}
+                            onChange={(e) => setSettings({...settings, profile: {...settings.profile, jobTitle: e.target.value}})}
+                            className="w-full p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium"
+                            placeholder="e.g. Senior Engineer"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">User Bio & Context</label>
+                        <p className="text-[10px] text-gray-400 mb-2">This is injected into the system prompt to help the AI understand who you are.</p>
+                        <textarea 
+                          rows={4}
+                          value={settings.profile.bio}
+                          onChange={(e) => setSettings({...settings, profile: {...settings.profile, bio: e.target.value}})}
+                          className="w-full p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm"
+                          placeholder="I prefer concise answers. I'm knowledgeable about Python but new to Rust..."
+                        />
+                      </div>
+                   </div>
+                 )}
+
+                 {/* APPEARANCE TAB */}
+                 {activeTab === 'appearance' && (
+                   <div className="space-y-6 max-w-lg">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Theme</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(['light', 'dark', 'system'] as const).map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => setSettings({...settings, theme: t})}
+                              className={`p-3 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 ${settings.theme === t ? 'bg-brand-50 border-brand-500 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'border-gray-200 dark:border-gray-700'}`}
+                            >
+                              {t === 'light' ? <Sun size={16}/> : t === 'dark' ? <Moon size={16}/> : <Sliders size={16}/>}
+                              {t.toUpperCase()}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                           <span className="text-sm font-medium">Compact Mode</span>
+                           <button onClick={() => setSettings(s => ({...s, interface: {...s.interface, compactMode: !s.interface.compactMode}}))} className={`w-10 h-6 rounded-full transition-colors relative ${settings.interface.compactMode ? 'bg-brand-600' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                              <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${settings.interface.compactMode ? 'translate-x-4' : ''}`} />
+                           </button>
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                           <span className="text-sm font-medium">Sound Effects</span>
+                           <button onClick={() => setSettings(s => ({...s, interface: {...s.interface, soundEnabled: !s.interface.soundEnabled}}))} className={`w-10 h-6 rounded-full transition-colors relative ${settings.interface.soundEnabled ? 'bg-brand-600' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                              <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${settings.interface.soundEnabled ? 'translate-x-4' : ''}`} />
+                           </button>
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                           <span className="text-sm font-medium">Wrap Code Blocks</span>
+                           <button onClick={() => setSettings(s => ({...s, interface: {...s.interface, codeWrapping: !s.interface.codeWrapping}}))} className={`w-10 h-6 rounded-full transition-colors relative ${settings.interface.codeWrapping ? 'bg-brand-600' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                              <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${settings.interface.codeWrapping ? 'translate-x-4' : ''}`} />
+                           </button>
+                        </div>
+                      </div>
+
+                      <div>
+                         <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Text-to-Speech Voice</label>
+                         <div className="relative">
+                            <Volume2 className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                            <select 
+                              value={settings.interface.selectedVoice}
+                              onChange={(e) => setSettings(s => ({...s, interface: {...s.interface, selectedVoice: e.target.value}}))}
+                              className="w-full pl-10 p-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm outline-none appearance-none"
+                            >
+                              <option value="">Default System Voice</option>
+                              {availableVoices.map(v => (
+                                <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>
+                              ))}
+                            </select>
+                         </div>
+                      </div>
+                   </div>
+                 )}
+
+                 {/* MODEL TAB */}
+                 {activeTab === 'model' && (
+                   <div className="space-y-8 max-w-xl">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Primary Model</label>
+                        <select 
+                          value={settings.model}
+                          onChange={(e) => setSettings({...settings, model: e.target.value})}
+                          className="w-full p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-bold shadow-sm"
+                        >
+                          {AVAILABLE_MODELS.map(m => (
+                            <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-6">
+                         <div>
+                            <div className="flex justify-between mb-1">
+                               <label className="text-xs font-bold text-gray-500 uppercase">Temperature</label>
+                               <span className="text-xs font-mono">{settings.modelPreferences.temperature}</span>
+                            </div>
+                            <input 
+                              type="range" min="0" max="2" step="0.1"
+                              value={settings.modelPreferences.temperature}
+                              onChange={(e) => setSettings(s => ({...s, modelPreferences: {...s.modelPreferences, temperature: parseFloat(e.target.value)}}))}
+                              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                            />
+                         </div>
+                         <div>
+                            <div className="flex justify-between mb-1">
+                               <label className="text-xs font-bold text-gray-500 uppercase">Top P</label>
+                               <span className="text-xs font-mono">{settings.modelPreferences.topP}</span>
+                            </div>
+                            <input 
+                              type="range" min="0" max="1" step="0.05"
+                              value={settings.modelPreferences.topP}
+                              onChange={(e) => setSettings(s => ({...s, modelPreferences: {...s.modelPreferences, topP: parseFloat(e.target.value)}}))}
+                              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                            />
+                         </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Global System Instructions</label>
+                        <textarea 
+                          rows={4}
+                          value={settings.systemInstruction}
+                          onChange={(e) => setSettings({...settings, systemInstruction: e.target.value})}
+                          className="w-full p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-mono"
+                          placeholder="You are a helpful assistant..."
+                        />
+                      </div>
+
+                      <div>
+                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Per-Model Instructions</label>
+                         <p className="text-[10px] text-gray-400 mb-2">Instructions specific to the currently selected model ({settings.model}).</p>
+                         <textarea 
+                           rows={3}
+                           value={settings.modelPreferences.customInstructions[settings.model] || ''}
+                           onChange={(e) => setSettings(s => ({
+                             ...s, 
+                             modelPreferences: {
+                               ...s.modelPreferences, 
+                               customInstructions: {
+                                 ...s.modelPreferences.customInstructions,
+                                 [settings.model]: e.target.value
+                               }
+                             }
+                           }))}
+                           className="w-full p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-mono"
+                           placeholder={`Specific instructions for ${settings.model}...`}
+                         />
+                      </div>
+                   </div>
+                 )}
+
+                 {/* API KEYS TAB */}
+                 {activeTab === 'api' && (
+                    <div className="space-y-4 max-w-lg">
+                      <div className="p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 text-xs rounded-lg border border-amber-200 dark:border-amber-800 mb-4">
+                        Your API keys are stored locally in your browser and synced only to your private Firestore data if signed in.
+                      </div>
+                      
+                      {['apiKey', 'googleApiKey', 'openaiApiKey', 'anthropicApiKey'].map(key => {
+                        const labels: Record<string, string> = {
+                          apiKey: 'Perplexity API Key',
+                          googleApiKey: 'Google Gemini API Key',
+                          openaiApiKey: 'OpenAI API Key',
+                          anthropicApiKey: 'Anthropic API Key'
+                        };
+                        return (
+                          <div key={key}>
+                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{labels[key]}</label>
+                             <input 
+                               type="password"
+                               value={(settings as any)[key] || ''}
+                               onChange={(e) => setSettings({...settings, [key]: e.target.value})}
+                               className="w-full p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-mono"
+                               placeholder="sk-..."
+                             />
+                          </div>
+                        );
+                      })}
+                    </div>
+                 )}
+
+                 {/* DATA TAB */}
+                 {activeTab === 'data' && (
+                    <div className="space-y-6 max-w-lg">
+                       <div>
+                         <h3 className="text-sm font-bold mb-2">Project Knowledge Base</h3>
+                         <textarea 
+                            rows={6}
+                            value={settings.projectContext}
+                            onChange={(e) => setSettings({...settings, projectContext: e.target.value})}
+                            className="w-full p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm"
+                            placeholder="Long-term context about your project, company, or goals..."
+                          />
+                       </div>
+                       
+                       <div className="pt-6 border-t border-gray-100 dark:border-gray-800">
+                          <h3 className="text-sm font-bold text-red-500 mb-2">Danger Zone</h3>
+                          <button onClick={() => setShowClearConfirm(true)} className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/10 text-red-600 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-sm font-bold">
+                             <Trash2 size={16} />
+                             Clear All Conversation History
+                          </button>
+                       </div>
+                    </div>
+                 )}
+               </div>
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Clear Confirmation Modal */}
+      {showClearConfirm && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+             <div className="bg-white dark:bg-gray-900 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+                 <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">Confirm Deletion</h3>
+                 <p className="text-sm text-gray-500 mb-4">Are you sure you want to delete all history? This cannot be undone.</p>
+                 <div className="flex justify-end gap-2">
+                    <button onClick={() => setShowClearConfirm(false)} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm font-bold">Cancel</button>
+                    <button onClick={() => { onClearHistory(); setShowClearConfirm(false); }} className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-bold">Delete All</button>
+                 </div>
+             </div>
+          </div>
       )}
     </>
   );

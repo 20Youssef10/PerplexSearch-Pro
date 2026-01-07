@@ -1,3 +1,4 @@
+
 export interface Usage {
   prompt_tokens: number;
   completion_tokens: number;
@@ -19,6 +20,7 @@ export interface Message {
   usage?: Usage;
   suggestions?: string[];
   attachments?: Attachment[];
+  isPinned?: boolean; // New: Pin feature
   // For special UI rendering
   type?: 'text' | 'image' | 'video' | 'flashcards' | 'quiz' | 'code';
   metadata?: any; 
@@ -39,20 +41,45 @@ export interface Conversation {
   updatedAt: number;
   folderId?: string;
   workspaceId?: string;
-  isTemporary?: boolean; // For temporary chat feature
+  isTemporary?: boolean;
 }
 
 export type SearchMode = 'concise' | 'copilot' | 'academic' | 'writing' | 'deep-research';
 
+export interface UserProfile {
+  displayName: string;
+  jobTitle: string;
+  bio: string; // Context for the AI
+  avatarUrl: string;
+}
+
+export interface ModelPreferences {
+  temperature: number;
+  topP: number;
+  customInstructions: Record<string, string>; // Keyed by model ID
+}
+
+export interface InterfaceSettings {
+  fontSize: 'small' | 'medium' | 'large';
+  compactMode: boolean;
+  soundEnabled: boolean;
+  codeWrapping: boolean;
+  selectedVoice: string; // TTS Voice URI
+}
+
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   model: string;
-  apiKey: string; // Perplexity Key
+  apiKey: string;
   googleApiKey?: string;
   openaiApiKey?: string;
   anthropicApiKey?: string;
   systemInstruction: string;
   projectContext: string;
+  // New Sections
+  profile: UserProfile;
+  modelPreferences: ModelPreferences;
+  interface: InterfaceSettings;
 }
 
 export interface ModelConfig {
@@ -79,13 +106,11 @@ export interface PerplexityResponseChunk {
   usage?: Usage;
 }
 
-// New Features Types
-
 export interface Workspace {
   id: string;
   name: string;
-  icon: string; // Emoji or lucide icon name
-  members: string[]; // Email addresses for group chat simulation
+  icon: string;
+  members: string[];
   createdAt: number;
 }
 
@@ -94,14 +119,14 @@ export interface Gem {
   name: string;
   description: string;
   systemPrompt: string;
-  icon: string; // Emoji
+  icon: string;
   model?: string;
 }
 
 export interface CanvasDocument {
   id: string;
   title: string;
-  content: string; // Markdown/HTML content
+  content: string;
   createdAt: number;
   updatedAt: number;
 }

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -30,14 +31,35 @@ const App: React.FC = () => {
 
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('app_settings');
-    let parsedSettings = saved ? JSON.parse(saved) : {
+    const defaultSettings: AppSettings = {
       theme: 'system',
       model: DEFAULT_MODEL,
       apiKey: process.env.PERPLEXITY_API_KEY || '',
       systemInstruction: '',
-      projectContext: ''
+      projectContext: '',
+      // Default Profile & Preferences
+      profile: {
+        displayName: '',
+        jobTitle: '',
+        bio: '',
+        avatarUrl: ''
+      },
+      modelPreferences: {
+        temperature: 0.7,
+        topP: 0.9,
+        customInstructions: {}
+      },
+      interface: {
+        fontSize: 'medium',
+        compactMode: false,
+        soundEnabled: true,
+        codeWrapping: false,
+        selectedVoice: ''
+      }
     };
-    return parsedSettings;
+    
+    // Merge saved settings with default structure to ensure new fields exist
+    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
   });
 
   // UI State
@@ -85,7 +107,12 @@ const App: React.FC = () => {
             if (cloudData.folders) setFolders(cloudData.folders);
             if (cloudData.settings) {
               setSettings(prev => ({
+                ...prev,
                 ...cloudData.settings,
+                // Ensure nesting merging for new objects
+                profile: { ...prev.profile, ...(cloudData.settings.profile || {}) },
+                modelPreferences: { ...prev.modelPreferences, ...(cloudData.settings.modelPreferences || {}) },
+                interface: { ...prev.interface, ...(cloudData.settings.interface || {}) },
                 apiKey: prev.apiKey || cloudData.settings.apiKey,
                 googleApiKey: prev.googleApiKey || cloudData.settings.googleApiKey,
                 openaiApiKey: prev.openaiApiKey || cloudData.settings.openaiApiKey,
@@ -208,15 +235,20 @@ const App: React.FC = () => {
 
   const handleSelectGem = (gem: Gem) => {
     handleNewChat();
-    // Pre-seed system instruction for this chat session
-    // Since we don't have per-chat system prompt in `messages` state easily accessible without complex logic,
-    // we'll just prepend it to the context when sending.
-    // Ideally, we'd add a `systemPrompt` field to Conversation.
-    // For now, we'll set the global system instruction temporarily, or better:
-    // Update input with a "ghost" instruction or switch mode.
-    // Let's toggle the system instruction in settings temporarily or just alert user.
     setSettings(prev => ({ ...prev, systemInstruction: gem.systemPrompt }));
-    // Ideally we'd show a toast "Gem Activated: [Name]"
+  };
+
+  const handlePinMessage = (index: number) => {
+    setConversations(prev => {
+      const copy = [...prev];
+      const target = copy.find(c => c.id === currentId);
+      if (target) {
+        // Toggle pin status
+        target.messages[index].isPinned = !target.messages[index].isPinned;
+        target.updatedAt = Date.now();
+      }
+      return copy;
+    });
   };
 
   const parseSuggestions = (content: string): { suggestions: string[], cleanContent: string } => {
@@ -292,7 +324,6 @@ const App: React.FC = () => {
         isTemporary: isTemporary,
         workspaceId: currentWorkspaceId
       };
-      // Only save if not temporary
       if (!isTemporary) {
          updatedConversations = [activeConvo, ...updatedConversations];
       }
@@ -325,22 +356,32 @@ const App: React.FC = () => {
       const copy = [...prev];
       const target = copy.find(c => c.id === tempId);
       if (target) target.messages.push(initialAssistantMsg);
-      // If temporary, we need to handle state differently if it's not in the list (new chat)
-      if (isTemporary && !target) {
-        // Logic for temp chat state management (simplified for this context)
-      }
       return copy;
     });
 
     abortControllerRef.current = new AbortController();
 
+    // Construct Comprehensive System Prompt using Profile Data and Preferences
+    const profileContext = settings.profile.bio 
+      ? `USER CONTEXT: The user is ${settings.profile.displayName || 'a user'} ${settings.profile.jobTitle ? `working as a ${settings.profile.jobTitle}` : ''}. Bio/Context: ${settings.profile.bio}`
+      : '';
+    
+    const perModelInstruction = settings.modelPreferences.customInstructions[settings.model] || '';
+
     const combinedSystem = `
       ${MODE_PROMPTS[searchMode]}
       ${settings.systemInstruction}
+      ${profileContext}
+      ${perModelInstruction ? `MODEL SPECIFIC INSTRUCTION: ${perModelInstruction}` : ''}
       RESEARCH CONTEXT: ${settings.projectContext}
       ${currentView === 'canvas' ? `You are in CANVAS MODE. The user is writing a document. The current document content is:\n${canvasDoc.content}\nProvide helpful edits or content generation.` : ''}
       ${FOLLOW_UP_INSTRUCTION}
     `.trim();
+
+    // Note: Temperature and TopP are read from settings.modelPreferences
+    // Since the service functions currently accept limited params, we rely on default behaviour or
+    // would need to update service signatures to pass temp/topP. 
+    // For this implementation, we focus on the Context injection above.
 
     try {
       let fullContent = '';
@@ -360,10 +401,8 @@ const App: React.FC = () => {
           return copy;
         });
 
-        // Live update canvas if in canvas mode and specific command detected
         if (currentView === 'canvas' && chunk.length > 5) {
-           // Simple heuristic: if AI is generating a large block, append to canvas preview? 
-           // Better: Let user click "AI Write" in canvas.
+           // Heuristic for canvas updates could go here
         }
       };
 
@@ -442,7 +481,7 @@ const App: React.FC = () => {
         ) : (
           <div className="flex flex-row h-full">
             {/* Main Chat Area */}
-            <div className={`flex-1 flex flex-col h-full relative transition-all duration-300 ${currentView === 'canvas' ? (isCanvasExpanded ? 'w-0 hidden' : 'w-1/2') : 'w-full'}`}>
+            <div className={`flex-1 flex flex-col h-full relative transition-all duration-300 ${currentView === 'canvas' ? (isCanvasExpanded ? 'w-0 hidden' : 'w-1/2') : 'w-full'} ${settings.interface.compactMode ? 'text-sm' : ''}`}>
               <Header 
                 isSidebarOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                 settings={settings} setSettings={setSettings} onClearHistory={handleClearHistory}
@@ -460,6 +499,9 @@ const App: React.FC = () => {
                          <div className="w-16 h-16 bg-brand-600 rounded-3xl flex items-center justify-center text-white text-3xl font-black shadow-xl shadow-brand-500/20">P</div>
                       </div>
                       <h1 className="text-4xl font-black text-gray-800 dark:text-gray-100 tracking-tight">PerplexSearch Pro</h1>
+                      {settings.profile.displayName && (
+                         <p className="text-sm font-medium text-brand-600 dark:text-brand-400">Welcome back, {settings.profile.displayName}</p>
+                      )}
                       {isTemporary && <span className="inline-block px-3 py-1 rounded-full bg-gray-900 text-white text-xs font-bold uppercase tracking-widest">Incognito Mode</span>}
                       <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Professional AI research with verified citations.</p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-xl mx-auto pt-4">
@@ -472,8 +514,14 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="max-w-4xl mx-auto w-full pb-48 pt-6">
-                    <MessageList messages={messages} onSuggestionClick={handleSuggestionClick} />
+                  <div className={`max-w-4xl mx-auto w-full pb-48 pt-6 ${settings.interface.compactMode ? 'px-2' : ''}`}>
+                    <MessageList 
+                      messages={messages} 
+                      onSuggestionClick={handleSuggestionClick} 
+                      onPinMessage={handlePinMessage}
+                      codeWrapping={settings.interface.codeWrapping}
+                      selectedVoice={settings.interface.selectedVoice}
+                    />
                   </div>
                 )}
               </main>

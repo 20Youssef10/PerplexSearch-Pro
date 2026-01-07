@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Conversation, Folder, Workspace, Gem } from '../types';
 import { 
@@ -38,8 +39,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [newFolderName, setNewFolderName] = useState('');
   const [activeTab, setActiveTab] = useState<'chats' | 'gems'>('chats');
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId) || workspaces[0];
+
+  // Filter conversations based on search
+  const filteredConversations = conversations.filter(c => 
+    c.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const formatDate = (ts: number) => {
     return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -91,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
-  const unassignedConvos = conversations.filter(c => !c.folderId);
+  const unassignedConvos = filteredConversations.filter(c => !c.folderId);
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
@@ -137,7 +144,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      <div className="p-4 space-y-3">
+      <div className="p-4 space-y-3 pb-0">
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 text-gray-400" size={14} />
+          <input 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search conversations..."
+            className="w-full pl-9 pr-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs font-medium outline-none focus:ring-2 focus:ring-brand-500/50"
+          />
+        </div>
+
         <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
           <button 
             onClick={() => setActiveTab('chats')}
@@ -185,7 +202,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-1">
+      <div className="flex-1 overflow-y-auto px-2 py-4 space-y-1">
         {activeTab === 'chats' && (
           <>
             <div className="flex items-center justify-between px-3 py-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
@@ -207,8 +224,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
 
             {folders.map(folder => {
-              const folderConvos = conversations.filter(c => c.folderId === folder.id);
+              // Also filter conversations inside folders
+              const folderConvos = filteredConversations.filter(c => c.folderId === folder.id);
               const isExpanded = expandedFolders[folder.id];
+
+              // Hide empty folders during search unless name matches
+              if (searchQuery && folderConvos.length === 0 && !folder.name.toLowerCase().includes(searchQuery)) return null;
 
               return (
                 <div key={folder.id} className="space-y-0.5">
@@ -226,7 +247,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <Trash2 size={12} />
                     </button>
                   </div>
-                  {isExpanded && (
+                  {(isExpanded || searchQuery) && (
                     <div className="ml-5 pl-2 border-l border-gray-100 dark:border-gray-800 space-y-0.5 py-1">
                       {folderConvos.map(renderConversation)}
                     </div>
@@ -236,13 +257,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             })}
 
             <div className="flex items-center gap-2 px-3 py-2 mt-4 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-              <span>Recent Activity</span>
+              <span>{searchQuery ? 'Search Results' : 'Recent Activity'}</span>
             </div>
-            {unassignedConvos.map(renderConversation)}
+            {unassignedConvos.length > 0 ? unassignedConvos.map(renderConversation) : (
+               <div className="text-center py-4 text-xs text-gray-400">
+                 {searchQuery ? 'No conversations found' : 'No history yet'}
+               </div>
+            )}
           </>
         )}
 
         {activeTab === 'gems' && (
+          /* Gems rendering kept same */
           <div className="space-y-2 p-1">
             {gems.map(gem => (
               <button
@@ -259,7 +285,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </button>
             ))}
-            <div className="pt-4 border-t border-gray-100 dark:border-gray-800 mt-4">
+            {/* Tools Section kept same */}
+             <div className="pt-4 border-t border-gray-100 dark:border-gray-800 mt-4">
               <p className="px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Tools</p>
               <button className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium text-gray-600 dark:text-gray-300">
                 <GraduationCap size={16} className="text-blue-500" />
@@ -273,15 +300,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
       </div>
-      
-      {currentWorkspace.id === 'work' && (
-        <div className="p-4 border-t border-gray-100 dark:border-gray-800">
-          <button className="w-full flex items-center justify-center gap-2 py-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-            <Users size={14} />
-            Invite Member
-          </button>
-        </div>
-      )}
     </div>
   );
 };

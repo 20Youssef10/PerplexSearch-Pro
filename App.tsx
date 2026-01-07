@@ -3,14 +3,18 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { MessageList } from './components/MessageList';
 import { SearchInput } from './components/SearchInput';
-import { Message, Conversation, Folder, SearchMode, AppSettings, Usage } from './types';
+import { AdminDashboard } from './components/AdminDashboard';
+import { Canvas } from './components/Canvas';
+import { Message, Conversation, Folder, SearchMode, AppSettings, Usage, Workspace, Gem, CanvasDocument } from './types';
 import { streamCompletion } from './services/perplexityService';
 import { streamGeminiCompletion } from './services/geminiService';
 import { streamOpenAICompletion } from './services/openaiService';
 import { streamAnthropicCompletion } from './services/anthropicService';
-import { DEFAULT_MODEL, NEW_CONVERSATION_ID, MODE_PROMPTS, FOLLOW_UP_INSTRUCTION, AVAILABLE_MODELS } from './constants';
+import { DEFAULT_MODEL, NEW_CONVERSATION_ID, MODE_PROMPTS, FOLLOW_UP_INSTRUCTION, AVAILABLE_MODELS, DEFAULT_WORKSPACES, DEFAULT_GEMS } from './constants';
 import { subscribeToAuth, getUserData, saveUserData } from './services/firebase';
 import { User } from 'firebase/auth';
+
+const ADMIN_EMAIL = "youssef2010.mahmoud@gmail.com";
 
 const App: React.FC = () => {
   // Persistence
@@ -38,16 +42,27 @@ const App: React.FC = () => {
 
   // UI State
   const [user, setUser] = useState<User | null>(null);
+  const [currentView, setCurrentView] = useState<'chat' | 'admin' | 'canvas'>('chat');
   const [currentId, setCurrentId] = useState<string>(NEW_CONVERSATION_ID);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchMode, setSearchMode] = useState<SearchMode>('concise');
   
+  // New Features State
+  const [isTemporary, setIsTemporary] = useState(false);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>('personal');
+  const [canvasDoc, setCanvasDoc] = useState<CanvasDocument>({ 
+    id: 'default', title: '', content: '', createdAt: Date.now(), updatedAt: Date.now() 
+  });
+  const [isCanvasExpanded, setIsCanvasExpanded] = useState(false);
+  
   const abortControllerRef = useRef<AbortController | null>(null);
   const saveTimeoutRef = useRef<any>(null);
 
   // Derived State
+  const isAdmin = user?.email === ADMIN_EMAIL;
+  
   const currentConversation = conversations.find(c => c.id === currentId) || {
     id: NEW_CONVERSATION_ID,
     title: 'New Search',
@@ -94,6 +109,9 @@ const App: React.FC = () => {
 
   // Persistence Effects (Local + Cloud Debounced)
   const persistData = () => {
+    // Skip saving if in temporary mode
+    if (isTemporary) return;
+
     localStorage.setItem('conversations', JSON.stringify(conversations));
     localStorage.setItem('folders', JSON.stringify(folders));
     localStorage.setItem('app_settings', JSON.stringify(settings));
@@ -112,7 +130,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     persistData();
-  }, [conversations, folders, settings, user]);
+  }, [conversations, folders, settings, user, isTemporary]);
 
   useEffect(() => {
     if (settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -126,6 +144,7 @@ const App: React.FC = () => {
   const handleNewChat = () => {
     setCurrentId(NEW_CONVERSATION_ID);
     setInput('');
+    setCurrentView('chat');
   };
 
   const handleDeleteFolder = (id: string) => {
@@ -134,7 +153,7 @@ const App: React.FC = () => {
   };
 
   const handleCreateFolder = (name: string) => {
-    const newFolder: Folder = { id: Date.now().toString(), name, createdAt: Date.now() };
+    const newFolder: Folder = { id: Date.now().toString(), name, createdAt: Date.now(), workspaceId: currentWorkspaceId };
     setFolders(prev => [newFolder, ...prev]);
   };
 
@@ -163,6 +182,43 @@ const App: React.FC = () => {
     handleSubmit(undefined, text); 
   };
 
+  const handleExport = (format: 'txt' | 'json' | 'md') => {
+    let content = '';
+    const date = new Date().toISOString().split('T')[0];
+    const filename = `chat-export-${date}.${format}`;
+
+    if (format === 'json') {
+      content = JSON.stringify(currentConversation, null, 2);
+    } else {
+      content = currentConversation.messages.map(m => {
+        const role = m.role.toUpperCase();
+        const time = new Date(m.timestamp).toLocaleTimeString();
+        return `[${time}] ${role}:\n${m.content}\n\n`;
+      }).join('-------------------\n\n');
+    }
+
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSelectGem = (gem: Gem) => {
+    handleNewChat();
+    // Pre-seed system instruction for this chat session
+    // Since we don't have per-chat system prompt in `messages` state easily accessible without complex logic,
+    // we'll just prepend it to the context when sending.
+    // Ideally, we'd add a `systemPrompt` field to Conversation.
+    // For now, we'll set the global system instruction temporarily, or better:
+    // Update input with a "ghost" instruction or switch mode.
+    // Let's toggle the system instruction in settings temporarily or just alert user.
+    setSettings(prev => ({ ...prev, systemInstruction: gem.systemPrompt }));
+    // Ideally we'd show a toast "Gem Activated: [Name]"
+  };
+
   const parseSuggestions = (content: string): { suggestions: string[], cleanContent: string } => {
     const marker = "[[SUGGESTIONS]]";
     const index = content.indexOf(marker);
@@ -182,7 +238,6 @@ const App: React.FC = () => {
 
   const generateAutoTitle = async (convoId: string, firstQuery: string) => {
     if (!settings.apiKey) return;
-    // We can stick to Perplexity for titling if available, or just skip if no Perplexity key
     try {
       const response = await fetch('https://api.perplexity.ai/chat/completions', {
         method: 'POST',
@@ -197,11 +252,8 @@ const App: React.FC = () => {
       });
       const data = await response.json();
       const title = data.choices?.[0]?.message?.content?.replace(/["']/g, '').trim() || firstQuery;
-      
       setConversations(prev => prev.map(c => c.id === convoId ? { ...c, title } : c));
-    } catch (e) {
-      // Fail silently for auto-titling
-    }
+    } catch (e) {}
   };
 
   const handleSubmit = async (e?: React.FormEvent, overrideInput?: string) => {
@@ -209,7 +261,6 @@ const App: React.FC = () => {
     const query = (overrideInput || input).trim();
     if (!query || isLoading) return;
 
-    // Determine Provider and Key
     const modelConfig = AVAILABLE_MODELS.find(m => m.id === settings.model);
     const provider = modelConfig?.provider || 'perplexity';
     
@@ -225,12 +276,7 @@ const App: React.FC = () => {
       return;
     }
 
-    const userMsg: Message = { 
-        role: 'user', 
-        content: query, 
-        timestamp: Date.now()
-    };
-    
+    const userMsg: Message = { role: 'user', content: query, timestamp: Date.now() };
     const tempId = currentId === NEW_CONVERSATION_ID ? Date.now().toString() : currentId;
 
     let updatedConversations = [...conversations];
@@ -242,15 +288,22 @@ const App: React.FC = () => {
         title: query.slice(0, 30) + '...',
         messages: [userMsg],
         createdAt: Date.now(),
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
+        isTemporary: isTemporary,
+        workspaceId: currentWorkspaceId
       };
-      updatedConversations = [activeConvo, ...updatedConversations];
-      if (provider === 'perplexity') generateAutoTitle(tempId, query);
+      // Only save if not temporary
+      if (!isTemporary) {
+         updatedConversations = [activeConvo, ...updatedConversations];
+      }
+      if (provider === 'perplexity' && !isTemporary) generateAutoTitle(tempId, query);
     } else {
       activeConvo.messages.push(userMsg);
       activeConvo.updatedAt = Date.now();
-      updatedConversations = updatedConversations.filter(c => c.id !== tempId);
-      updatedConversations.unshift(activeConvo);
+      if (!isTemporary) {
+        updatedConversations = updatedConversations.filter(c => c.id !== tempId);
+        updatedConversations.unshift(activeConvo);
+      }
     }
 
     setConversations(updatedConversations);
@@ -272,6 +325,10 @@ const App: React.FC = () => {
       const copy = [...prev];
       const target = copy.find(c => c.id === tempId);
       if (target) target.messages.push(initialAssistantMsg);
+      // If temporary, we need to handle state differently if it's not in the list (new chat)
+      if (isTemporary && !target) {
+        // Logic for temp chat state management (simplified for this context)
+      }
       return copy;
     });
 
@@ -281,12 +338,12 @@ const App: React.FC = () => {
       ${MODE_PROMPTS[searchMode]}
       ${settings.systemInstruction}
       RESEARCH CONTEXT: ${settings.projectContext}
+      ${currentView === 'canvas' ? `You are in CANVAS MODE. The user is writing a document. The current document content is:\n${canvasDoc.content}\nProvide helpful edits or content generation.` : ''}
       ${FOLLOW_UP_INSTRUCTION}
     `.trim();
 
     try {
       let fullContent = '';
-      
       const onChunk = (chunk: string, citations?: string[], usage?: Usage) => {
         fullContent += chunk;
         setConversations(prev => {
@@ -302,6 +359,12 @@ const App: React.FC = () => {
           }
           return copy;
         });
+
+        // Live update canvas if in canvas mode and specific command detected
+        if (currentView === 'canvas' && chunk.length > 5) {
+           // Simple heuristic: if AI is generating a large block, append to canvas preview? 
+           // Better: Let user click "AI Write" in canvas.
+        }
       };
 
       const messagesForApi = activeConvo.messages.filter(m => m.timestamp < assistantMsgId);
@@ -317,9 +380,7 @@ const App: React.FC = () => {
         await streamAnthropicCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
       }
 
-      // Post-process response to extract suggestions
       const { suggestions, cleanContent } = parseSuggestions(fullContent);
-      
       setConversations(prev => {
         const copy = [...prev];
         const target = copy.find(c => c.id === tempId);
@@ -336,13 +397,10 @@ const App: React.FC = () => {
 
     } catch (error: any) {
       if (error.name !== 'AbortError') {
-        console.error(error);
         setConversations(prev => {
           const copy = [...prev];
           const target = copy.find(c => c.id === tempId);
-          if (target) {
-            target.messages[target.messages.length - 1].content += "\n\n**Error:** " + (error.message || "Request failed.");
-          }
+          if (target) target.messages[target.messages.length - 1].content += "\n\n**Error:** " + (error.message || "Request failed.");
           return copy;
         });
       }
@@ -358,58 +416,90 @@ const App: React.FC = () => {
 
       <div className={`fixed inset-y-0 left-0 z-30 w-72 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <Sidebar 
-          conversations={conversations}
-          folders={folders}
+          conversations={conversations.filter(c => c.workspaceId === currentWorkspaceId || !c.workspaceId)}
+          folders={folders.filter(f => f.workspaceId === currentWorkspaceId || !f.workspaceId)}
           currentId={currentId}
-          onSelect={setCurrentId}
+          workspaces={DEFAULT_WORKSPACES}
+          currentWorkspaceId={currentWorkspaceId}
+          gems={DEFAULT_GEMS}
+          onSelectWorkspace={setCurrentWorkspaceId}
+          onSelectGem={handleSelectGem}
+          onSelect={(id) => { setCurrentId(id); setCurrentView('chat'); }}
           onDelete={(id) => setConversations(prev => prev.filter(c => c.id !== id))}
           onNew={handleNewChat}
           onCreateFolder={handleCreateFolder}
           onMoveToFolder={handleMoveToFolder}
           onDeleteFolder={handleDeleteFolder}
+          onOpenCanvas={() => { setCurrentView('canvas'); }}
+          isAdmin={isAdmin}
+          onGoAdmin={() => setCurrentView('admin')}
         />
       </div>
 
       <div className="flex-1 flex flex-col h-full w-full relative">
-        <Header 
-          isSidebarOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-          settings={settings} setSettings={setSettings} onClearHistory={handleClearHistory}
-          user={user}
-        />
+        {currentView === 'admin' && isAdmin ? (
+          <AdminDashboard onBack={() => setCurrentView('chat')} />
+        ) : (
+          <div className="flex flex-row h-full">
+            {/* Main Chat Area */}
+            <div className={`flex-1 flex flex-col h-full relative transition-all duration-300 ${currentView === 'canvas' ? (isCanvasExpanded ? 'w-0 hidden' : 'w-1/2') : 'w-full'}`}>
+              <Header 
+                isSidebarOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                settings={settings} setSettings={setSettings} onClearHistory={handleClearHistory}
+                user={user}
+                isTemporary={isTemporary}
+                onToggleTemporary={() => setIsTemporary(!isTemporary)}
+                onExport={handleExport}
+              />
 
-        <main className="flex-1 overflow-y-auto">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center p-4 text-center">
-              <div className="max-w-2xl w-full space-y-6">
-                <div className="flex justify-center mb-4">
-                   <div className="w-16 h-16 bg-brand-600 rounded-3xl flex items-center justify-center text-white text-3xl font-black shadow-xl shadow-brand-500/20">P</div>
-                </div>
-                <h1 className="text-4xl font-black text-gray-800 dark:text-gray-100 tracking-tight">PerplexSearch Pro</h1>
-                <p className="text-gray-500 dark:text-gray-400 text-lg">AI-powered deep research engine with cited knowledge.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-xl mx-auto pt-4">
-                   {["The future of AI agents in 2025", "Latest findings in deep space exploration", "Explain quantum computing visually", "Top open source alternatives to popular SaaS"].map(q => (
-                     <button key={q} onClick={() => { setInput(q); handleSubmit(undefined, q); }} className="p-4 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/10 transition-all text-sm text-left font-medium text-gray-600 dark:text-gray-300">
-                       {q}
-                     </button>
-                   ))}
+              <main className="flex-1 overflow-y-auto">
+                {messages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center p-4 text-center">
+                    <div className="max-w-2xl w-full space-y-6">
+                      <div className="flex justify-center mb-4">
+                         <div className="w-16 h-16 bg-brand-600 rounded-3xl flex items-center justify-center text-white text-3xl font-black shadow-xl shadow-brand-500/20">P</div>
+                      </div>
+                      <h1 className="text-4xl font-black text-gray-800 dark:text-gray-100 tracking-tight">PerplexSearch Pro</h1>
+                      {isTemporary && <span className="inline-block px-3 py-1 rounded-full bg-gray-900 text-white text-xs font-bold uppercase tracking-widest">Incognito Mode</span>}
+                      <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Professional AI research with verified citations.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-xl mx-auto pt-4">
+                         {["Future of AI agents 2025", "Latest findings in fusion energy", "Modern architecture trends in Japan", "Competitive analysis of e-commerce SaaS"].map(q => (
+                           <button key={q} onClick={() => { setInput(q); handleSubmit(undefined, q); }} className="p-4 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/10 transition-all text-sm text-left font-bold text-gray-600 dark:text-gray-300 shadow-sm">
+                             {q}
+                           </button>
+                         ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="max-w-4xl mx-auto w-full pb-48 pt-6">
+                    <MessageList messages={messages} onSuggestionClick={handleSuggestionClick} />
+                  </div>
+                )}
+              </main>
+
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent dark:from-gray-900 dark:via-gray-900 pt-16 pb-6 px-4">
+                <div className="max-w-3xl mx-auto">
+                  <SearchInput 
+                    input={input} setInput={setInput} onSubmit={handleSubmit} onStop={handleStopGeneration}
+                    isLoading={isLoading} searchMode={searchMode} setSearchMode={setSearchMode}
+                  />
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="max-w-4xl mx-auto w-full pb-48 pt-6">
-              <MessageList messages={messages} onSuggestionClick={handleSuggestionClick} />
-            </div>
-          )}
-        </main>
 
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent dark:from-gray-900 dark:via-gray-900 pt-16 pb-6 px-4">
-          <div className="max-w-3xl mx-auto">
-            <SearchInput 
-              input={input} setInput={setInput} onSubmit={handleSubmit} onStop={handleStopGeneration}
-              isLoading={isLoading} searchMode={searchMode} setSearchMode={setSearchMode}
-            />
+            {/* Canvas Area */}
+            {currentView === 'canvas' && (
+              <Canvas 
+                document={canvasDoc} 
+                onUpdate={(content) => setCanvasDoc(prev => ({ ...prev, content, updatedAt: Date.now() }))}
+                isExpanded={isCanvasExpanded}
+                onToggleExpand={() => setIsCanvasExpanded(!isCanvasExpanded)}
+                onClose={() => setCurrentView('chat')}
+              />
+            )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

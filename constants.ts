@@ -1,4 +1,4 @@
-import { ModelConfig } from './types';
+import { ModelConfig, Gem } from './types';
 
 export const DEFAULT_MODEL = 'sonar';
 export const NEW_CONVERSATION_ID = 'new';
@@ -48,6 +48,12 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
     description: 'Google: High intelligence & Thinking',
     provider: 'google'
   },
+  {
+    id: 'gemini-2.5-flash-image',
+    name: 'Nano Banana',
+    description: 'Google: Image Generation & Editing',
+    provider: 'google'
+  },
   // OpenAI
   {
     id: 'gpt-4o',
@@ -95,7 +101,8 @@ export const MODE_PROMPTS: Record<string, string> = {
   concise: "Be precise, concise, and direct in your answers.",
   academic: "You are an academic researcher. Provide detailed, technical answers with heavy reliance on citations. Use formal language.",
   writing: "You are a creative writing assistant. Focus on flow, style, and engaging narrative. You can be more verbose.",
-  copilot: "You are a helpful co-pilot. Break down complex problems into steps and ask clarifying questions if necessary."
+  copilot: "You are a helpful co-pilot. Break down complex problems into steps and ask clarifying questions if necessary.",
+  "deep-research": "You are a Deep Research Agent. Your goal is to exhaustively research the user's query. Break the problem down into multiple sub-questions, explore each thoroughly, and synthesize a comprehensive report. Use 'thinking' blocks to show your plan."
 };
 
 // This instruction forces the model to provide follow-up questions in a specific parseable format
@@ -135,5 +142,49 @@ export const PROMPT_TEMPLATES = [
       { title: 'Email Polish', text: 'Rewrite this email to be more professional and concise:\n\n' },
       { title: 'Executive Summary', text: 'Summarize the following text into a one-paragraph executive summary:\n\n' },
     ]
+  },
+  {
+    category: 'Tools',
+    prompts: [
+      { title: 'Generate Quiz', text: 'Create a 5-question multiple choice quiz about [Topic] in JSON format.' },
+      { title: 'Flashcards', text: 'Generate 10 study flashcards for [Topic] with terms and definitions.' },
+      { title: 'Presentation Outline', text: 'Create a slide-by-slide outline for a 10-minute presentation on [Topic].' }
+    ]
   }
+];
+
+export const DEFAULT_GEMS: Gem[] = [
+  {
+    id: 'coding-wizard',
+    name: 'Code Wizard',
+    description: 'Expert Full-Stack Developer',
+    icon: '💻',
+    systemPrompt: 'You are an expert Senior Software Engineer. You write clean, efficient, and well-documented code. You prefer TypeScript and Python.'
+  },
+  {
+    id: 'creative-muse',
+    name: 'Creative Muse',
+    description: 'Storytelling & Ideation',
+    icon: '🎨',
+    systemPrompt: 'You are a creative writing partner. Focus on vivid imagery, compelling narratives, and unique angles. Avoid clichés.'
+  },
+  {
+    id: 'data-analyst',
+    name: 'Data Analyst',
+    description: 'Insights from raw data',
+    icon: '📊',
+    systemPrompt: 'You are a Data Analyst. You excel at finding patterns, explaining statistical concepts, and structuring data. Be objective and precise.'
+  },
+  {
+    id: 'teacher',
+    name: 'Tutor',
+    description: 'Explain like I\'m 5',
+    icon: '🎓',
+    systemPrompt: 'You are a patient and encouraging tutor. Explain complex concepts simply, using analogies and examples. Check for understanding.'
+  }
+];
+
+export const DEFAULT_WORKSPACES = [
+  { id: 'personal', name: 'Personal', icon: 'User', members: [], createdAt: Date.now() },
+  { id: 'work', name: 'Work', icon: 'Briefcase', members: [], createdAt: Date.now() }
 ];

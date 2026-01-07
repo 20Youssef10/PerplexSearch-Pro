@@ -19,12 +19,16 @@ export interface Message {
   usage?: Usage;
   suggestions?: string[];
   attachments?: Attachment[];
+  // For special UI rendering
+  type?: 'text' | 'image' | 'video' | 'flashcards' | 'quiz' | 'code';
+  metadata?: any; 
 }
 
 export interface Folder {
   id: string;
   name: string;
   createdAt: number;
+  workspaceId?: string;
 }
 
 export interface Conversation {
@@ -34,9 +38,11 @@ export interface Conversation {
   createdAt: number;
   updatedAt: number;
   folderId?: string;
+  workspaceId?: string;
+  isTemporary?: boolean; // For temporary chat feature
 }
 
-export type SearchMode = 'concise' | 'copilot' | 'academic' | 'writing';
+export type SearchMode = 'concise' | 'copilot' | 'academic' | 'writing' | 'deep-research';
 
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
@@ -71,4 +77,31 @@ export interface PerplexityResponseChunk {
   }[];
   citations?: string[];
   usage?: Usage;
+}
+
+// New Features Types
+
+export interface Workspace {
+  id: string;
+  name: string;
+  icon: string; // Emoji or lucide icon name
+  members: string[]; // Email addresses for group chat simulation
+  createdAt: number;
+}
+
+export interface Gem {
+  id: string;
+  name: string;
+  description: string;
+  systemPrompt: string;
+  icon: string; // Emoji
+  model?: string;
+}
+
+export interface CanvasDocument {
+  id: string;
+  title: string;
+  content: string; // Markdown/HTML content
+  createdAt: number;
+  updatedAt: number;
 }

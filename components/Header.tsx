@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Moon, Sun, Menu, X, Check, Trash2, Info, LogIn, LogOut, User as UserIcon, Mail, UserPlus, Shield } from 'lucide-react';
+import { Settings, Moon, Sun, Menu, X, Check, Trash2, Info, LogIn, LogOut, User as UserIcon, Mail, UserPlus, Shield, Download, FileText, EyeOff, Share2 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { AVAILABLE_MODELS } from '../constants';
 import { signInWithGoogle, signInEmail, signUpEmail, signInGuest, signOut } from '../services/firebase';
@@ -12,12 +12,19 @@ interface HeaderProps {
   setSettings: React.Dispatch<React.SetStateAction<AppSettings>>;
   onClearHistory: () => void;
   user: User | null;
+  isTemporary: boolean;
+  onToggleTemporary: () => void;
+  onExport: (format: 'txt' | 'json' | 'md') => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar, settings, setSettings, onClearHistory, user }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  isSidebarOpen, toggleSidebar, settings, setSettings, onClearHistory, user,
+  isTemporary, onToggleTemporary, onExport
+}) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [activeTab, setActiveTab] = useState<'api' | 'model' | 'context'>('api');
 
   // Auth Modal State
@@ -93,8 +100,33 @@ export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar, se
         </div>
 
         <div className="flex items-center gap-1">
+          <button
+            onClick={onToggleTemporary}
+            className={`p-2 rounded-lg transition-all mr-2 ${isTemporary ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-md' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+            title={isTemporary ? "Incognito Mode On (Chats not saved)" : "Enable Incognito Mode"}
+          >
+            <EyeOff size={18} />
+          </button>
+
+          <div className="relative">
+            <button 
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="p-2 text-gray-400 hover:text-brand-600 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              title="Export Chat"
+            >
+              <Download size={18} />
+            </button>
+            {showExportMenu && (
+              <div className="absolute top-full right-0 mt-2 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 w-40 overflow-hidden animate-in fade-in zoom-in-95 z-50">
+                 <button onClick={() => { onExport('md'); setShowExportMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium">Markdown (.md)</button>
+                 <button onClick={() => { onExport('txt'); setShowExportMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium">Text (.txt)</button>
+                 <button onClick={() => { onExport('json'); setShowExportMenu(false); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium">JSON</button>
+              </div>
+            )}
+          </div>
+
           {user ? (
-            <div className="flex items-center gap-2 mr-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2 mr-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700 ml-2">
                {user.photoURL ? (
                  <img src={user.photoURL} alt="Profile" className="w-5 h-5 rounded-full" />
                ) : (
@@ -108,7 +140,7 @@ export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar, se
           ) : (
             <button 
               onClick={() => setShowAuthModal(true)}
-              className="flex items-center gap-1.5 mr-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-full text-xs font-bold transition-all shadow-md shadow-brand-500/20 active:scale-95"
+              className="flex items-center gap-1.5 mr-2 ml-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-full text-xs font-bold transition-all shadow-md shadow-brand-500/20 active:scale-95"
             >
               <LogIn size={14} />
               <span>Sign In</span>
@@ -280,7 +312,6 @@ export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar, se
                       placeholder="sk-ant-..."
                       className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
                     />
-                    <p className="text-[10px] text-gray-400">Note: Browser requests to Anthropic may require a proxy.</p>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase">Appearance</label>
@@ -370,8 +401,8 @@ export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar, se
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </header>
     </>
   );
 };

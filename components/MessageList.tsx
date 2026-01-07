@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { Message, Slide, YouTubeVideo } from '../types';
-import { Bot, User, Copy, Check, ExternalLink, Volume2, VolumeX, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard, Pin, Play, MonitorPlay, Maximize2 } from 'lucide-react';
+import { Bot, User, Copy, Check, ExternalLink, Volume2, VolumeX, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard, Pin, Play, MonitorPlay, Maximize2, ListMusic, X } from 'lucide-react';
 import { AVAILABLE_MODELS } from '../constants';
 
 interface MessageListProps {
@@ -22,7 +22,6 @@ const formatTime = (timestamp: number) => {
 const CodeRunner: React.FC<{ code: string; language: string }> = ({ code, language }) => {
   const [showPreview, setShowPreview] = useState(false);
   
-  // Only support HTML/JS for safe preview
   if (language !== 'html' && language !== 'javascript') return null;
 
   const srcDoc = language === 'html' 
@@ -73,7 +72,6 @@ const SlideDeck: React.FC<{ slides: Slide[] }> = ({ slides }) => {
         </div>
       </div>
       
-      {/* Controls */}
       <div className="bg-gray-800 p-3 flex items-center justify-between">
          <span className="text-xs font-mono text-gray-500">Slide {current + 1} / {slides.length}</span>
          <div className="flex gap-2">
@@ -103,24 +101,83 @@ const SlideDeck: React.FC<{ slides: Slide[] }> = ({ slides }) => {
   );
 };
 
-const YouTubeCard: React.FC<{ video: YouTubeVideo }> = ({ video }) => (
-  <a 
-    href={`https://www.youtube.com/watch?v=${video.id}`} 
-    target="_blank" 
-    rel="noopener noreferrer"
-    className="flex gap-3 p-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-500 transition-all group"
-  >
-    <div className="w-32 h-20 flex-shrink-0 rounded-lg overflow-hidden relative">
-      <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
-      <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-all" />
-      <div className="absolute bottom-1 right-1 bg-black/80 text-white text-[9px] px-1 rounded">Video</div>
+const YouTubeCard: React.FC<{ video: YouTubeVideo }> = ({ video }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const isPlaylist = video.type === 'playlist';
+
+  // Construct embed URL based on type
+  const embedUrl = isPlaylist
+    ? `https://www.youtube.com/embed/videoseries?list=${video.id}`
+    : `https://www.youtube.com/embed/${video.id}?autoplay=1`;
+
+  if (isPlaying) {
+    return (
+      <div className="flex flex-col w-full bg-black rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-xl transition-all animate-in zoom-in-95 duration-200">
+        <div className="relative w-full aspect-video">
+          <iframe 
+            src={embedUrl}
+            title={video.title}
+            className="absolute inset-0 w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            allowFullScreen
+          />
+        </div>
+        <div className="p-3 bg-gray-900 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+               {isPlaylist ? <ListMusic size={16} className="text-brand-400 flex-shrink-0" /> : <Play size={16} className="text-brand-400 flex-shrink-0" />}
+               <span className="text-xs font-bold text-white truncate">{video.title}</span>
+            </div>
+            <button 
+              onClick={() => setIsPlaying(false)} 
+              className="p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
+              title="Close Player"
+            >
+              <X size={14} />
+            </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      className="flex gap-3 p-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-500 hover:shadow-md transition-all group cursor-pointer"
+      onClick={() => setIsPlaying(true)}
+    >
+      <div className="w-32 h-20 flex-shrink-0 rounded-lg overflow-hidden relative group-hover:ring-2 ring-brand-500 transition-all">
+        <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-all flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full bg-white/90 shadow-lg flex items-center justify-center transform scale-90 group-hover:scale-105 transition-transform">
+               {isPlaylist ? <ListMusic size={14} className="text-gray-900 ml-0.5"/> : <Play size={14} className="text-gray-900 ml-0.5" fill="currentColor" />}
+            </div>
+        </div>
+        <div className="absolute bottom-1 right-1 bg-black/80 text-white text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+          {isPlaylist ? 'Playlist' : 'Video'}
+        </div>
+      </div>
+      <div className="flex-1 min-w-0 py-1 flex flex-col justify-between">
+        <div>
+           <h4 className="font-bold text-sm line-clamp-2 text-gray-800 dark:text-gray-200 group-hover:text-brand-600 transition-colors leading-tight">{video.title}</h4>
+           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">{video.channelTitle}</p>
+        </div>
+        <div className="flex gap-2 mt-1">
+             <button className="text-[10px] bg-brand-600 text-white px-2 py-1 rounded-md font-bold hover:bg-brand-700 transition-colors flex items-center gap-1 shadow-sm">
+                <Play size={10} fill="currentColor"/> Play
+             </button>
+             <a 
+               href={`https://www.youtube.com/watch?v=${video.id}${isPlaylist ? '&list='+video.id : ''}`} 
+               target="_blank" 
+               rel="noopener noreferrer" 
+               onClick={(e) => e.stopPropagation()} 
+               className="text-[10px] text-gray-500 hover:text-brand-600 flex items-center gap-1 px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded-md font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+             >
+                <ExternalLink size={10} /> Open
+             </a>
+        </div>
+      </div>
     </div>
-    <div className="flex-1 min-w-0 py-1">
-      <h4 className="font-bold text-sm line-clamp-2 text-gray-800 dark:text-gray-200 group-hover:text-brand-600">{video.title}</h4>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{video.channelTitle}</p>
-    </div>
-  </a>
-);
+  );
+};
 
 export const MessageList: React.FC<MessageListProps> = ({ 
   messages, onSuggestionClick, onPinMessage, codeWrapping = false, selectedVoice 
@@ -174,9 +231,9 @@ export const MessageList: React.FC<MessageListProps> = ({
                 </div>
               )}
 
-              {/* YouTube Results */}
+              {/* YouTube Results - Interactive Media Player */}
               {msg.youtubeData && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                   {msg.youtubeData.map(v => <YouTubeCard key={v.id} video={v} />)}
                 </div>
               )}
@@ -314,7 +371,6 @@ export const MessageList: React.FC<MessageListProps> = ({
         );
       })}
 
-      {/* Suggested Questions */}
       {messages.length > 0 && messages[messages.length - 1].role === 'assistant' && messages[messages.length - 1].suggestions && (
         <div className="flex flex-col items-start gap-2 pt-2 pl-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
            <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
@@ -339,4 +395,3 @@ export const MessageList: React.FC<MessageListProps> = ({
     </div>
   );
 };
-    

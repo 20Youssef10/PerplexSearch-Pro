@@ -18,6 +18,7 @@ export interface Slide {
 
 export interface YouTubeVideo {
   id: string;
+  type: 'video' | 'playlist';
   title: string;
   description: string;
   thumbnail: string;

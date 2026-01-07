@@ -6,6 +6,7 @@ export const streamGeminiCompletion = async (
   model: string,
   apiKey: string,
   onChunk: (content: string, citations?: string[], usage?: Usage, grounding?: any) => void,
+  signal?: AbortSignal,
   systemPrompt?: string
 ) => {
   const ai = new GoogleGenAI({ apiKey });
@@ -30,6 +31,7 @@ export const streamGeminiCompletion = async (
 
       // Poll for completion
       while (!operation.done) {
+        if (signal?.aborted) throw new Error("Aborted");
         await new Promise(resolve => setTimeout(resolve, 5000));
         operation = await ai.operations.getVideosOperation({operation: operation});
       }
@@ -44,15 +46,16 @@ export const streamGeminiCompletion = async (
         throw new Error("Video generation completed but no URI was returned.");
       }
     } catch (e: any) {
-      console.error("Veo Error:", e);
-      onChunk(`\n\n**Error generating video:** ${e.message}`, undefined, undefined, undefined);
+      if (e.message !== "Aborted") {
+        console.error("Veo Error:", e);
+        onChunk(`\n\n**Error generating video:** ${e.message}`, undefined, undefined, undefined);
+      }
     }
     return;
   }
 
-  // 2. IMAGE GENERATION/EDITING (Nano Banana)
+  // 2. IMAGE GENERATION/EDITING
   if (model === 'gemini-2.5-flash-image') {
-    // Map messages to Gemini format, similar to standard but usually just need prompt + ref image
     const contents = messages.map(m => {
         if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
             return {
@@ -78,7 +81,6 @@ export const streamGeminiCompletion = async (
         model: 'gemini-2.5-flash-image',
         contents: contents,
         config: {
-           // No responseMimeType for this model
            imageConfig: { aspectRatio: "1:1" }
         }
       });
@@ -109,9 +111,7 @@ export const streamGeminiCompletion = async (
     return;
   }
 
-
   // 3. STANDARD TEXT/MULTIMODAL STREAMING
-  // Map messages to Gemini format
   let contents = messages.map(m => {
     if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
       return {
@@ -127,8 +127,6 @@ export const streamGeminiCompletion = async (
         ]
       };
     }
-    
-    // Default text only
     return {
       role: m.role === 'assistant' ? 'model' : m.role,
       parts: [{ text: m.content }]
@@ -139,63 +137,57 @@ export const streamGeminiCompletion = async (
     systemInstruction: systemPrompt,
   };
 
-  // Model-specific configurations
   if (model === 'gemini-3-flash-preview') {
-    // Add Google Search for Flash 3
     config.tools = [{ googleSearch: {} }];
   } else if (model === 'gemini-3-pro-preview') {
-    // Add Thinking for Pro 3
     config.thinkingConfig = { thinkingBudget: 2048 }; 
   } else if (model === 'gemini-2.5-flash') {
-    // Add Maps for Flash 2.5
     config.tools = [{ googleMaps: {} }];
   }
 
-  const responseStream = await ai.models.generateContentStream({
-    model: model,
-    contents: contents,
-    config: config
-  });
+  try {
+    const responseStream = await ai.models.generateContentStream({
+      model: model,
+      contents: contents,
+      config: config
+    });
 
-  let citations: string[] = [];
+    let citations: string[] = [];
 
-  for await (const chunk of responseStream) {
-    const c = chunk as GenerateContentResponse;
-    
-    // Extract text
-    const text = c.text;
-    if (text) {
-      onChunk(text, undefined, undefined, undefined);
-    }
+    for await (const chunk of responseStream) {
+      if (signal?.aborted) break;
 
-    // Handle Grounding (Google Search & Maps)
-    const groundingChunk = c.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    if (groundingChunk) {
-      
-      // Extract Web URLs
-      const newWebCitations = groundingChunk
-        .filter((c: any) => c.web?.uri)
-        .map((c: any) => c.web.uri);
-      
-      // Extract Map URLs
-      const newMapCitations = groundingChunk
-        .filter((c: any) => c.maps?.uri)
-        .map((c: any) => c.maps.uri);
+      const c = chunk as GenerateContentResponse;
+      const text = c.text;
+      if (text) onChunk(text, undefined, undefined, undefined);
 
-      if (newWebCitations.length > 0 || newMapCitations.length > 0) {
-        citations = [...new Set([...citations, ...newWebCitations, ...newMapCitations])];
-        onChunk('', citations, undefined, c.candidates?.[0]?.groundingMetadata);
+      const groundingChunk = c.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      if (groundingChunk) {
+        const newWebCitations = groundingChunk
+          .filter((c: any) => c.web?.uri)
+          .map((c: any) => c.web.uri);
+        
+        const newMapCitations = groundingChunk
+          .filter((c: any) => c.maps?.uri)
+          .map((c: any) => c.maps.uri);
+
+        if (newWebCitations.length > 0 || newMapCitations.length > 0) {
+          citations = [...new Set([...citations, ...newWebCitations, ...newMapCitations])];
+          onChunk('', citations, undefined, c.candidates?.[0]?.groundingMetadata);
+        }
+      }
+
+      if (c.usageMetadata) {
+        const usage: Usage = {
+          prompt_tokens: c.usageMetadata.promptTokenCount || 0,
+          completion_tokens: c.usageMetadata.candidatesTokenCount || 0,
+          total_tokens: c.usageMetadata.totalTokenCount || 0
+        };
+        onChunk('', undefined, usage, undefined);
       }
     }
-
-    // Handle Usage
-    if (c.usageMetadata) {
-      const usage: Usage = {
-        prompt_tokens: c.usageMetadata.promptTokenCount || 0,
-        completion_tokens: c.usageMetadata.candidatesTokenCount || 0,
-        total_tokens: c.usageMetadata.totalTokenCount || 0
-      };
-      onChunk('', undefined, usage, undefined);
-    }
+  } catch (error: any) {
+    if (error.name === 'AbortError' || signal?.aborted) return;
+    throw error;
   }
 };

@@ -3,9 +3,12 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { MessageList } from './components/MessageList';
 import { SearchInput } from './components/SearchInput';
-import { Message, Conversation, Folder, SearchMode, AppSettings } from './types';
+import { Message, Conversation, Folder, SearchMode, AppSettings, Usage } from './types';
 import { streamCompletion } from './services/perplexityService';
-import { DEFAULT_MODEL, NEW_CONVERSATION_ID, MODE_PROMPTS, FOLLOW_UP_INSTRUCTION } from './constants';
+import { streamGeminiCompletion } from './services/geminiService';
+import { streamOpenAICompletion } from './services/openaiService';
+import { streamAnthropicCompletion } from './services/anthropicService';
+import { DEFAULT_MODEL, NEW_CONVERSATION_ID, MODE_PROMPTS, FOLLOW_UP_INSTRUCTION, AVAILABLE_MODELS } from './constants';
 import { subscribeToAuth, getUserData, saveUserData } from './services/firebase';
 import { User } from 'firebase/auth';
 
@@ -57,26 +60,24 @@ const App: React.FC = () => {
 
   // Firebase Auth & Sync Effect
   useEffect(() => {
-    // Use wrapper to safely handle auth state changes (safe for dev envs where auth is disabled)
     const unsubscribe = subscribeToAuth(async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        // User logged in: Fetch data
         try {
           const cloudData = await getUserData(currentUser.uid);
           if (cloudData) {
-            // If data exists in cloud, use it (Simple strategy: Cloud wins on login)
             if (cloudData.conversations) setConversations(cloudData.conversations);
             if (cloudData.folders) setFolders(cloudData.folders);
             if (cloudData.settings) {
-              // Merge API key if local is empty but cloud has one, or user preference
               setSettings(prev => ({
                 ...cloudData.settings,
-                apiKey: prev.apiKey || cloudData.settings.apiKey // Prefer local API key if set to avoid overwriting with potentially stale or empty cloud key during dev
+                apiKey: prev.apiKey || cloudData.settings.apiKey,
+                googleApiKey: prev.googleApiKey || cloudData.settings.googleApiKey,
+                openaiApiKey: prev.openaiApiKey || cloudData.settings.openaiApiKey,
+                anthropicApiKey: prev.anthropicApiKey || cloudData.settings.anthropicApiKey,
               }));
             }
           } else {
-            // First time cloud user: Sync local data to cloud
             saveUserData(currentUser.uid, {
               conversations,
               folders,
@@ -97,7 +98,6 @@ const App: React.FC = () => {
     localStorage.setItem('folders', JSON.stringify(folders));
     localStorage.setItem('app_settings', JSON.stringify(settings));
 
-    // Debounced Cloud Save
     if (user) {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = setTimeout(() => {
@@ -106,7 +106,7 @@ const App: React.FC = () => {
           folders,
           settings
         });
-      }, 2000); // 2 second debounce
+      }, 2000); 
     }
   };
 
@@ -160,7 +160,7 @@ const App: React.FC = () => {
   const handleSuggestionClick = (text: string) => {
     if (isLoading) return;
     setInput(text);
-    handleSubmit(undefined, text); // Pass text as override
+    handleSubmit(undefined, text); 
   };
 
   const parseSuggestions = (content: string): { suggestions: string[], cleanContent: string } => {
@@ -171,7 +171,6 @@ const App: React.FC = () => {
     const suggestionsPart = content.slice(index + marker.length);
     const cleanContent = content.slice(0, index).trim();
     
-    // Parse list like "1. Question?"
     const suggestions = suggestionsPart
       .split('\n')
       .map(line => line.replace(/^\d+\.\s*/, '').replace(/^-\s*/, '').trim())
@@ -183,6 +182,7 @@ const App: React.FC = () => {
 
   const generateAutoTitle = async (convoId: string, firstQuery: string) => {
     if (!settings.apiKey) return;
+    // We can stick to Perplexity for titling if available, or just skip if no Perplexity key
     try {
       const response = await fetch('https://api.perplexity.ai/chat/completions', {
         method: 'POST',
@@ -200,7 +200,7 @@ const App: React.FC = () => {
       
       setConversations(prev => prev.map(c => c.id === convoId ? { ...c, title } : c));
     } catch (e) {
-      console.warn('Auto-titling failed', e);
+      // Fail silently for auto-titling
     }
   };
 
@@ -209,8 +209,19 @@ const App: React.FC = () => {
     const query = (overrideInput || input).trim();
     if (!query || isLoading) return;
 
-    if (!settings.apiKey) {
-      alert("Please configure your Perplexity API Key in settings.");
+    // Determine Provider and Key
+    const modelConfig = AVAILABLE_MODELS.find(m => m.id === settings.model);
+    const provider = modelConfig?.provider || 'perplexity';
+    
+    let apiKey = '';
+    if (provider === 'perplexity') apiKey = settings.apiKey;
+    else if (provider === 'google') apiKey = settings.googleApiKey || '';
+    else if (provider === 'openai') apiKey = settings.openaiApiKey || '';
+    else if (provider === 'anthropic') apiKey = settings.anthropicApiKey || '';
+
+    if (!apiKey) {
+      alert(`Please configure your ${provider === 'perplexity' ? 'Perplexity' : provider.charAt(0).toUpperCase() + provider.slice(1)} API Key in settings.`);
+      setIsLoading(false);
       return;
     }
 
@@ -222,7 +233,6 @@ const App: React.FC = () => {
     
     const tempId = currentId === NEW_CONVERSATION_ID ? Date.now().toString() : currentId;
 
-    // Convo Setup
     let updatedConversations = [...conversations];
     let activeConvo = updatedConversations.find(c => c.id === tempId);
 
@@ -235,8 +245,7 @@ const App: React.FC = () => {
         updatedAt: Date.now()
       };
       updatedConversations = [activeConvo, ...updatedConversations];
-      // Fire titling in background
-      generateAutoTitle(tempId, query);
+      if (provider === 'perplexity') generateAutoTitle(tempId, query);
     } else {
       activeConvo.messages.push(userMsg);
       activeConvo.updatedAt = Date.now();
@@ -278,7 +287,7 @@ const App: React.FC = () => {
     try {
       let fullContent = '';
       
-      const onChunk = (chunk: string, citations?: string[], usage?: any) => {
+      const onChunk = (chunk: string, citations?: string[], usage?: Usage) => {
         fullContent += chunk;
         setConversations(prev => {
           const copy = [...prev];
@@ -295,14 +304,18 @@ const App: React.FC = () => {
         });
       };
 
-      await streamCompletion(
-          activeConvo.messages.filter(m => m.timestamp < assistantMsgId),
-          settings.model,
-          settings.apiKey,
-          onChunk,
-          abortControllerRef.current.signal,
-          combinedSystem
-      );
+      const messagesForApi = activeConvo.messages.filter(m => m.timestamp < assistantMsgId);
+      const signal = abortControllerRef.current.signal;
+
+      if (provider === 'perplexity') {
+        await streamCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
+      } else if (provider === 'google') {
+        await streamGeminiCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
+      } else if (provider === 'openai') {
+        await streamOpenAICompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
+      } else if (provider === 'anthropic') {
+        await streamAnthropicCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
+      }
 
       // Post-process response to extract suggestions
       const { suggestions, cleanContent } = parseSuggestions(fullContent);

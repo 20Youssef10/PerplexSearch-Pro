@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Settings, Moon, Sun, Menu, X, Check, Trash2, Info, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { AppSettings } from '../types';
-import { PERPLEXITY_MODELS } from '../constants';
+import { AVAILABLE_MODELS } from '../constants';
 import { signIn, signOut } from '../services/firebase';
 import { User } from 'firebase/auth';
 
@@ -18,6 +18,13 @@ export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar, se
   const [showSettings, setShowSettings] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<'api' | 'model' | 'context'>('api');
+
+  // Group models by provider
+  const modelsByProvider = AVAILABLE_MODELS.reduce((acc, model) => {
+    acc[model.provider] = acc[model.provider] || [];
+    acc[model.provider].push(model);
+    return acc;
+  }, {} as Record<string, typeof AVAILABLE_MODELS>);
 
   return (
     <>
@@ -108,6 +115,37 @@ export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar, se
                     />
                   </div>
                   <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Google Gemini API Key</label>
+                    <input 
+                      type="password" 
+                      value={settings.googleApiKey || ''}
+                      onChange={(e) => setSettings({...settings, googleApiKey: e.target.value})}
+                      placeholder="AIza..."
+                      className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase">OpenAI API Key</label>
+                    <input 
+                      type="password" 
+                      value={settings.openaiApiKey || ''}
+                      onChange={(e) => setSettings({...settings, openaiApiKey: e.target.value})}
+                      placeholder="sk-..."
+                      className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Anthropic API Key</label>
+                    <input 
+                      type="password" 
+                      value={settings.anthropicApiKey || ''}
+                      onChange={(e) => setSettings({...settings, anthropicApiKey: e.target.value})}
+                      placeholder="sk-ant-..."
+                      className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+                    />
+                    <p className="text-[10px] text-gray-400">Note: Browser requests to Anthropic may require a proxy.</p>
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase">Appearance</label>
                     <div className="grid grid-cols-3 gap-2">
                       {(['light', 'dark', 'system'] as const).map((t) => (
@@ -128,19 +166,26 @@ export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar, se
               )}
 
               {activeTab === 'model' && (
-                <div className="space-y-3">
-                  {PERPLEXITY_MODELS.map(model => (
-                    <button
-                      key={model.id}
-                      onClick={() => setSettings({...settings, model: model.id})}
-                      className={`w-full text-left p-3 rounded-xl border transition-all flex flex-col gap-1 ${settings.model === model.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20' : 'border-gray-200 dark:border-gray-700'}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-sm">{model.name}</span>
-                        {settings.model === model.id && <Check size={14} className="text-brand-600" />}
+                <div className="space-y-6">
+                  {Object.entries(modelsByProvider).map(([provider, models]) => (
+                    <div key={provider}>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">{provider}</h3>
+                      <div className="space-y-2">
+                        {models.map(model => (
+                          <button
+                            key={model.id}
+                            onClick={() => setSettings({...settings, model: model.id})}
+                            className={`w-full text-left p-3 rounded-xl border transition-all flex flex-col gap-1 ${settings.model === model.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20' : 'border-gray-200 dark:border-gray-700'}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-sm">{model.name}</span>
+                              {settings.model === model.id && <Check size={14} className="text-brand-600" />}
+                            </div>
+                            <span className="text-[10px] text-gray-500 leading-relaxed">{model.description}</span>
+                          </button>
+                        ))}
                       </div>
-                      <span className="text-[10px] text-gray-500 leading-relaxed">{model.description}</span>
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}

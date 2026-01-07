@@ -4,7 +4,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { Message } from '../types';
 import { Bot, User, Copy, Check, ExternalLink, Volume2, VolumeX, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard } from 'lucide-react';
-import { PERPLEXITY_MODELS } from '../constants';
+import { AVAILABLE_MODELS } from '../constants';
 
 interface MessageListProps {
   messages: Message[];
@@ -116,6 +116,10 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, onSuggestion
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages[messages.length - 1]?.content, messages.length]);
 
+  const formatTime = (ts: number) => {
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   const parseContent = (content: string) => {
     // Regex to extract <think> block
     const thinkMatch = content.match(/<think>([\s\S]*?)(?:<\/think>|$)/);
@@ -144,13 +148,13 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, onSuggestion
               </div>
             )}
 
-            <div className={`relative max-w-[90%] md:max-w-[85%] rounded-2xl p-4 shadow-sm ${
+            <div className={`relative group max-w-[90%] md:max-w-[85%] rounded-2xl p-4 shadow-sm ${
               msg.role === 'user' 
                 ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100' 
                 : 'bg-white dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-200'
             }`}>
               {msg.role === 'assistant' && (
-                 <div className="absolute top-2 right-2 z-10 flex gap-1">
+                 <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                    <TTSButton text={main} />
                    <CopyButton text={main} />
                  </div>
@@ -231,22 +235,33 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, onSuggestion
                 </div>
               )}
 
-              {/* Metadata Section */}
-              {msg.role === 'assistant' && (
-                <div className="mt-2 pt-2 flex items-center gap-2 text-[9px] text-gray-400 dark:text-gray-500 font-medium select-none border-t border-transparent">
-                  {msg.model && (
-                    <span title={msg.model}>
-                      {PERPLEXITY_MODELS.find(m => m.id === msg.model)?.name || msg.model}
+              {/* Metadata / Timestamp Section */}
+              <div className={`mt-2 flex items-center gap-2 text-[9px] text-gray-400 dark:text-gray-500 font-medium select-none ${
+                msg.role === 'assistant' 
+                  ? 'pt-2 border-t border-transparent' 
+                  : 'justify-end opacity-0 group-hover:opacity-100 transition-opacity'
+              }`}>
+                {msg.role === 'assistant' ? (
+                  <>
+                    {msg.model && (
+                      <span title={msg.model}>
+                        {AVAILABLE_MODELS.find(m => m.id === msg.model)?.name || msg.model}
+                      </span>
+                    )}
+                    {msg.responseTime && (
+                      <><span>•</span><span>{(msg.responseTime / 1000).toFixed(2)}s</span></>
+                    )}
+                    {msg.usage && (
+                      <><span>•</span><span>{msg.usage.total_tokens} tokens</span></>
+                    )}
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      • {formatTime(msg.timestamp)}
                     </span>
-                  )}
-                  {msg.responseTime && (
-                    <><span>•</span><span>{(msg.responseTime / 1000).toFixed(2)}s</span></>
-                  )}
-                  {msg.usage && (
-                    <><span>•</span><span>{msg.usage.total_tokens} tokens</span></>
-                  )}
-                </div>
-              )}
+                  </>
+                ) : (
+                  <span>{formatTime(msg.timestamp)}</span>
+                )}
+              </div>
             </div>
 
             {msg.role === 'user' && (

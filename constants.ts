@@ -1,29 +1,65 @@
+import { ModelConfig } from './types';
+
 export const DEFAULT_MODEL = 'sonar';
 export const NEW_CONVERSATION_ID = 'new';
 
-export const PERPLEXITY_MODELS = [
-  // Perplexity Models
+export const AVAILABLE_MODELS: ModelConfig[] = [
+  // Perplexity
   { 
     id: 'sonar', 
     name: 'Sonar', 
-    description: 'Fast, efficient, and cost-effective. Best for quick lookups.' 
+    description: 'Perplexity: Fast online search',
+    provider: 'perplexity'
   },
   { 
     id: 'sonar-pro', 
     name: 'Sonar Pro', 
-    description: 'High intelligence and reasoning. Best for research and complex queries.' 
+    description: 'Perplexity: Deep research & reasoning',
+    provider: 'perplexity'
   },
   { 
     id: 'sonar-reasoning', 
     name: 'Sonar Reasoning', 
-    description: 'Advanced reasoning capabilities for complex tasks.' 
+    description: 'Perplexity: Chain of thought',
+    provider: 'perplexity'
   },
-  { 
-    id: 'sonar-reasoning-pro', 
-    name: 'Sonar Reasoning Pro', 
-    description: 'Specialized in chain-of-thought reasoning. Best for math and logic.' 
+  // Google
+  {
+    id: 'gemini-3-flash-preview',
+    name: 'Gemini 3 Flash',
+    description: 'Google: Fast, low latency',
+    provider: 'google'
+  },
+  {
+    id: 'gemini-3-pro-preview',
+    name: 'Gemini 3 Pro',
+    description: 'Google: Complex reasoning',
+    provider: 'google'
+  },
+  // OpenAI
+  {
+    id: 'gpt-4o',
+    name: 'GPT-4o',
+    description: 'OpenAI: Most advanced model',
+    provider: 'openai'
+  },
+  {
+    id: 'gpt-4o-mini',
+    name: 'GPT-4o Mini',
+    description: 'OpenAI: Efficient & fast',
+    provider: 'openai'
+  },
+  // Anthropic
+  {
+    id: 'claude-3-5-sonnet-20241022',
+    name: 'Claude 3.5 Sonnet',
+    description: 'Anthropic: Best for coding & nuance',
+    provider: 'anthropic'
   }
 ];
+
+// For backward compatibility if needed, though we should migrate usage
+export const PERPLEXITY_MODELS = AVAILABLE_MODELS.filter(m => m.provider === 'perplexity');
 
 export const MODE_PROMPTS: Record<string, string> = {
   concise: "Be precise, concise, and direct in your answers.",

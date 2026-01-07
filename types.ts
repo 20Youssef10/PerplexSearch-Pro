@@ -42,8 +42,18 @@ export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   model: string;
   apiKey: string; // Perplexity Key
+  googleApiKey?: string;
+  openaiApiKey?: string;
+  anthropicApiKey?: string;
   systemInstruction: string;
   projectContext: string;
+}
+
+export interface ModelConfig {
+  id: string;
+  name: string;
+  description: string;
+  provider: 'perplexity' | 'google' | 'openai' | 'anthropic';
 }
 
 export interface PerplexityResponseChunk {

@@ -3,8 +3,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { Message, Slide, YouTubeVideo } from '../types';
-import { Bot, User, Copy, Check, ExternalLink, Volume2, VolumeX, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard, Pin, Play, MonitorPlay, Maximize2, ListMusic, X } from 'lucide-react';
+import mermaid from 'mermaid';
+import { LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import PptxGenJS from 'pptxgenjs';
+import { Message, Slide, YouTubeVideo, ChartData } from '../types';
+import { Bot, User, Copy, Check, ExternalLink, Volume2, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard, Play, MonitorPlay, ListMusic, X, Download, Swords, Award } from 'lucide-react';
 import { AVAILABLE_MODELS } from '../constants';
 
 interface MessageListProps {
@@ -15,38 +18,29 @@ interface MessageListProps {
   selectedVoice?: string;
 }
 
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+
 const formatTime = (timestamp: number) => {
   return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+// --- Sub-components ---
+
 const CodeRunner: React.FC<{ code: string; language: string }> = ({ code, language }) => {
   const [showPreview, setShowPreview] = useState(false);
-  
   if (language !== 'html' && language !== 'javascript') return null;
-
-  const srcDoc = language === 'html' 
-    ? code 
-    : `<html><body><script>${code}</script></body></html>`;
+  const srcDoc = language === 'html' ? code : `<html><body><script>${code}</script></body></html>`;
 
   return (
     <div className="mt-2">
       <div className="flex justify-end mb-2">
-        <button 
-          onClick={() => setShowPreview(!showPreview)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 text-brand-700 text-xs font-bold rounded-lg hover:bg-brand-100 transition-colors"
-        >
-          {showPreview ? <MonitorPlay size={14} /> : <Play size={14} />}
-          {showPreview ? 'Hide Preview' : 'Run / Preview'}
+        <button onClick={() => setShowPreview(!showPreview)} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 text-brand-700 text-xs font-bold rounded-lg hover:bg-brand-100 transition-colors">
+          {showPreview ? <MonitorPlay size={14} /> : <Play size={14} />} {showPreview ? 'Hide Preview' : 'Run / Preview'}
         </button>
       </div>
       {showPreview && (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white h-64 shadow-inner">
-          <iframe 
-            srcDoc={srcDoc} 
-            className="w-full h-full" 
-            sandbox="allow-scripts"
-            title="Code Preview"
-          />
+          <iframe srcDoc={srcDoc} className="w-full h-full" sandbox="allow-scripts" title="Code Preview" />
         </div>
       )}
     </div>
@@ -56,8 +50,22 @@ const CodeRunner: React.FC<{ code: string; language: string }> = ({ code, langua
 const SlideDeck: React.FC<{ slides: Slide[] }> = ({ slides }) => {
   const [current, setCurrent] = useState(0);
 
+  const exportPPTX = () => {
+    const pptx = new PptxGenJS();
+    slides.forEach(s => {
+      const slide = pptx.addSlide();
+      slide.addText(s.title, { x: 1, y: 1, w: '80%', fontSize: 24, bold: true });
+      slide.addText(s.content.join('\n'), { x: 1, y: 2, w: '80%', fontSize: 16 });
+      if (s.note) slide.addNotes(s.note);
+    });
+    pptx.writeFile({ fileName: "Presentation.pptx" });
+  };
+
   return (
-    <div className="my-4 bg-gray-900 text-white rounded-xl overflow-hidden aspect-video shadow-2xl relative flex flex-col">
+    <div className="my-4 bg-gray-900 text-white rounded-xl overflow-hidden aspect-video shadow-2xl relative flex flex-col group">
+      <button onClick={exportPPTX} className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 p-2 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity z-10" title="Download PPTX">
+         <Download size={16} />
+      </button>
       <div className="flex-1 flex items-center justify-center p-8 text-center bg-gradient-to-br from-gray-800 to-black">
         <div className="max-w-2xl w-full">
            <h2 className="text-2xl md:text-3xl font-bold mb-6 text-brand-400">{slides[current].title}</h2>
@@ -71,79 +79,72 @@ const SlideDeck: React.FC<{ slides: Slide[] }> = ({ slides }) => {
            </ul>
         </div>
       </div>
-      
       <div className="bg-gray-800 p-3 flex items-center justify-between">
          <span className="text-xs font-mono text-gray-500">Slide {current + 1} / {slides.length}</span>
          <div className="flex gap-2">
-           <button 
-             disabled={current === 0}
-             onClick={() => setCurrent(c => c - 1)}
-             className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50 text-xs font-bold"
-           >
-             Prev
-           </button>
-           <button 
-             disabled={current === slides.length - 1}
-             onClick={() => setCurrent(c => c + 1)}
-             className="px-3 py-1 bg-brand-600 rounded hover:bg-brand-500 disabled:opacity-50 text-xs font-bold"
-           >
-             Next
-           </button>
+           <button disabled={current === 0} onClick={() => setCurrent(c => c - 1)} className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50 text-xs font-bold">Prev</button>
+           <button disabled={current === slides.length - 1} onClick={() => setCurrent(c => c + 1)} className="px-3 py-1 bg-brand-600 rounded hover:bg-brand-500 disabled:opacity-50 text-xs font-bold">Next</button>
          </div>
       </div>
-      
-      {slides[current].note && (
-         <div className="bg-gray-900/90 p-2 text-xs text-gray-400 text-center border-t border-gray-800">
-            Speaker Note: {slides[current].note}
-         </div>
-      )}
     </div>
   );
+};
+
+const DataChart: React.FC<{ chart: ChartData }> = ({ chart }) => {
+  return (
+    <div className="my-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
+      <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 text-center">{chart.title}</h3>
+      <div className="w-full h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          {chart.type === 'line' ? (
+             <LineChart data={chart.data}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey={chart.xKey}/><YAxis/><Tooltip/><Legend/>{chart.yKeys.map((k,i)=><Line key={k} type="monotone" dataKey={k} stroke={COLORS[i%COLORS.length]}/>)}</LineChart>
+          ) : chart.type === 'bar' ? (
+             <BarChart data={chart.data}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey={chart.xKey}/><YAxis/><Tooltip/><Legend/>{chart.yKeys.map((k,i)=><Bar key={k} dataKey={k} fill={COLORS[i%COLORS.length]}/>)}</BarChart>
+          ) : chart.type === 'area' ? (
+             <AreaChart data={chart.data}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey={chart.xKey}/><YAxis/><Tooltip/><Legend/>{chart.yKeys.map((k,i)=><Area key={k} type="monotone" dataKey={k} fill={COLORS[i%COLORS.length]} stroke={COLORS[i%COLORS.length]}/>)}</AreaChart>
+          ) : (
+             <PieChart><Pie data={chart.data} dataKey={chart.yKeys[0]} nameKey={chart.xKey} cx="50%" cy="50%" outerRadius={80} label>{chart.data.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
+const MermaidDiagram: React.FC<{ code: string }> = ({ code }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+       mermaid.run({ nodes: [ref.current] }).catch(console.error);
+    }
+  }, [code]);
+  return <div className="mermaid my-4 text-center bg-gray-50 dark:bg-gray-800 p-4 rounded-xl overflow-x-auto" ref={ref}>{code}</div>;
 };
 
 const YouTubeCard: React.FC<{ video: YouTubeVideo }> = ({ video }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const isPlaylist = video.type === 'playlist';
-
-  // Construct embed URL based on type
-  const embedUrl = isPlaylist
-    ? `https://www.youtube.com/embed/videoseries?list=${video.id}`
-    : `https://www.youtube.com/embed/${video.id}?autoplay=1`;
+  const embedUrl = isPlaylist ? `https://www.youtube.com/embed/videoseries?list=${video.id}` : `https://www.youtube.com/embed/${video.id}?autoplay=1`;
 
   if (isPlaying) {
     return (
       <div className="flex flex-col w-full bg-black rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-xl transition-all animate-in zoom-in-95 duration-200">
         <div className="relative w-full aspect-video">
-          <iframe 
-            src={embedUrl}
-            title={video.title}
-            className="absolute inset-0 w-full h-full"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-            allowFullScreen
-          />
+          <iframe src={embedUrl} title={video.title} className="absolute inset-0 w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
         </div>
         <div className="p-3 bg-gray-900 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
                {isPlaylist ? <ListMusic size={16} className="text-brand-400 flex-shrink-0" /> : <Play size={16} className="text-brand-400 flex-shrink-0" />}
                <span className="text-xs font-bold text-white truncate">{video.title}</span>
             </div>
-            <button 
-              onClick={() => setIsPlaying(false)} 
-              className="p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
-              title="Close Player"
-            >
-              <X size={14} />
-            </button>
+            <button onClick={() => setIsPlaying(false)} className="p-1.5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"><X size={14} /></button>
         </div>
       </div>
     );
   }
 
   return (
-    <div 
-      className="flex gap-3 p-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-500 hover:shadow-md transition-all group cursor-pointer"
-      onClick={() => setIsPlaying(true)}
-    >
+    <div className="flex gap-3 p-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-500 hover:shadow-md transition-all group cursor-pointer" onClick={() => setIsPlaying(true)}>
       <div className="w-32 h-20 flex-shrink-0 rounded-lg overflow-hidden relative group-hover:ring-2 ring-brand-500 transition-all">
         <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-all flex items-center justify-center">
@@ -151,38 +152,27 @@ const YouTubeCard: React.FC<{ video: YouTubeVideo }> = ({ video }) => {
                {isPlaylist ? <ListMusic size={14} className="text-gray-900 ml-0.5"/> : <Play size={14} className="text-gray-900 ml-0.5" fill="currentColor" />}
             </div>
         </div>
-        <div className="absolute bottom-1 right-1 bg-black/80 text-white text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
-          {isPlaylist ? 'Playlist' : 'Video'}
-        </div>
       </div>
       <div className="flex-1 min-w-0 py-1 flex flex-col justify-between">
         <div>
            <h4 className="font-bold text-sm line-clamp-2 text-gray-800 dark:text-gray-200 group-hover:text-brand-600 transition-colors leading-tight">{video.title}</h4>
            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">{video.channelTitle}</p>
         </div>
-        <div className="flex gap-2 mt-1">
-             <button className="text-[10px] bg-brand-600 text-white px-2 py-1 rounded-md font-bold hover:bg-brand-700 transition-colors flex items-center gap-1 shadow-sm">
-                <Play size={10} fill="currentColor"/> Play
-             </button>
-             <a 
-               href={`https://www.youtube.com/watch?v=${video.id}${isPlaylist ? '&list='+video.id : ''}`} 
-               target="_blank" 
-               rel="noopener noreferrer" 
-               onClick={(e) => e.stopPropagation()} 
-               className="text-[10px] text-gray-500 hover:text-brand-600 flex items-center gap-1 px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded-md font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-             >
-                <ExternalLink size={10} /> Open
-             </a>
-        </div>
       </div>
     </div>
   );
 };
 
+// --- Main Component ---
+
 export const MessageList: React.FC<MessageListProps> = ({ 
-  messages, onSuggestionClick, onPinMessage, codeWrapping = false, selectedVoice 
+  messages, onSuggestionClick, onPinMessage, codeWrapping = false 
 }) => {
   const endRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -201,13 +191,35 @@ export const MessageList: React.FC<MessageListProps> = ({
   return (
     <div className="space-y-6 px-4 md:px-6">
       {messages.map((msg, idx) => {
+        // Arena Mode Rendering
+        if (msg.role === 'arena' && msg.arenaComparison) {
+          const { modelA, modelB } = msg.arenaComparison;
+          return (
+            <div key={idx} className="space-y-4">
+              <div className="flex items-center justify-center gap-2 text-brand-600 font-bold uppercase tracking-widest text-xs">
+                 <Swords size={16} /> Model Arena Fight
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {[modelA, modelB].map((m, i) => (
+                   <div key={i} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center justify-between mb-3 border-b border-gray-100 dark:border-gray-800 pb-2">
+                         <span className="font-bold text-sm text-gray-800 dark:text-gray-200">{m.name}</span>
+                         <span className="text-xs font-mono text-gray-400">{(m.time / 1000).toFixed(2)}s</span>
+                      </div>
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                         <ReactMarkdown>{m.content}</ReactMarkdown>
+                      </div>
+                   </div>
+                 ))}
+              </div>
+            </div>
+          );
+        }
+
         const { thought, main } = msg.role === 'assistant' ? parseContent(msg.content) : { thought: null, main: msg.content };
 
         return (
-          <div 
-            key={idx} 
-            className={`flex gap-3 md:gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+          <div key={idx} className={`flex gap-3 md:gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.role === 'assistant' && (
               <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center flex-shrink-0 text-brand-600 dark:text-brand-400 mt-1 shadow-sm">
                 <Bot size={18} />
@@ -215,12 +227,10 @@ export const MessageList: React.FC<MessageListProps> = ({
             )}
 
             <div className={`relative group max-w-[95%] md:max-w-[85%] rounded-2xl p-4 shadow-sm transition-all ${
-              msg.role === 'user' 
-                ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100' 
-                : 'bg-white dark:bg-gray-900/50 border text-gray-800 dark:text-gray-200'
-            } ${msg.isPinned ? 'border-brand-500 ring-1 ring-brand-500/20' : 'border-gray-100 dark:border-gray-800'}`}>
+              msg.role === 'user' ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100' : 'bg-white dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-200'
+            }`}>
               
-              {/* Audio Player */}
+              {/* Special Attachments */}
               {msg.audioData && (
                 <div className="mb-4 bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-3 mb-2">
@@ -231,29 +241,25 @@ export const MessageList: React.FC<MessageListProps> = ({
                 </div>
               )}
 
-              {/* YouTube Results - Interactive Media Player */}
               {msg.youtubeData && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                   {msg.youtubeData.map(v => <YouTubeCard key={v.id} video={v} />)}
                 </div>
               )}
 
-              {/* Slides */}
               {msg.slidesData && <SlideDeck slides={msg.slidesData} />}
+              
+              {msg.chartData && <DataChart chart={msg.chartData} />}
 
               {thought && (
                  <div className="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden">
                    <details className="group/details">
                      <summary className="flex items-center gap-2 p-3 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors cursor-pointer select-none">
-                       <Brain size={14} className="text-amber-500" />
-                       <span>Reasoning Process</span>
-                       <div className="flex-1" />
-                       <ChevronDown size={14} className="group-open/details:rotate-180 transition-transform" />
+                       <Brain size={14} className="text-amber-500" /><span>Reasoning Process</span>
+                       <ChevronDown size={14} className="ml-auto group-open/details:rotate-180 transition-transform" />
                      </summary>
                      <div className="p-3 pt-0 border-t border-gray-200 dark:border-gray-700/50">
-                       <div className="prose prose-xs dark:prose-invert max-w-none text-gray-500 dark:text-gray-400 font-mono text-[10px] leading-relaxed whitespace-pre-wrap">
-                         {thought}
-                       </div>
+                       <div className="prose prose-xs dark:prose-invert max-w-none text-gray-500 dark:text-gray-400 font-mono text-[10px] leading-relaxed whitespace-pre-wrap">{thought}</div>
                      </div>
                    </details>
                  </div>
@@ -268,20 +274,15 @@ export const MessageList: React.FC<MessageListProps> = ({
                     rehypePlugins={[rehypeKatex]}
                     components={{
                       a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline break-all" />,
-                      img: ({ node, ...props }) => {
-                        if (props.alt === 'Generated Video') {
-                          return (
-                            <div className="my-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-black relative group">
-                              <video src={props.src} controls className="w-full max-h-[400px]" />
-                            </div>
-                          );
-                        }
-                        return <img {...props} className="max-w-full rounded-lg my-2 border border-gray-200 dark:border-gray-700" />;
-                      },
                       code: ({ node, inline, className, children, ...props }: any) => {
                         const match = /language-(\w+)/.exec(className || '');
                         const language = match?.[1] || '';
                         const codeString = String(children).replace(/\n$/, '');
+                        
+                        // Render Mermaid Diagrams
+                        if (!inline && language === 'mermaid') {
+                           return <MermaidDiagram code={codeString} />;
+                        }
 
                         return !inline ? (
                           <div className="relative group my-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -304,93 +305,29 @@ export const MessageList: React.FC<MessageListProps> = ({
                   </ReactMarkdown>
                 )}
               </div>
-
-              {/* Citations Section */}
-              {msg.citations && msg.citations.length > 0 && (
-                <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800/50">
-                  <p className="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-widest">Verified Sources</p>
-                  <div className="flex flex-wrap gap-2">
-                    {msg.citations.map((cite, i) => {
-                       let label = cite;
-                       try { label = new URL(cite).hostname.replace('www.', ''); } catch(e) {}
-                       return (
-                        <a 
-                          key={i} 
-                          href={cite} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 max-w-[200px] text-xs bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1.5 transition-colors text-gray-600 dark:text-gray-400 truncate"
-                        >
-                          <span className="flex-shrink-0 font-mono text-[9px] w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
-                            {i + 1}
-                          </span>
-                          <span className="truncate">{label}</span>
-                          <ExternalLink size={10} className="opacity-50" />
-                        </a>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Metadata / Timestamp Section */}
-              <div className={`mt-2 flex items-center gap-2 text-[9px] text-gray-400 dark:text-gray-500 font-medium select-none ${
-                msg.role === 'assistant' 
-                  ? 'pt-2 border-t border-transparent' 
-                  : 'justify-end opacity-0 group-hover:opacity-100 transition-opacity'
-              }`}>
-                {msg.role === 'assistant' ? (
-                  <>
-                    {msg.model && (
-                      <span title={msg.model}>
-                        {AVAILABLE_MODELS.find(m => m.id === msg.model)?.name || msg.model}
-                      </span>
-                    )}
-                    {msg.responseTime && (
-                      <><span>•</span><span>{(msg.responseTime / 1000).toFixed(2)}s</span></>
-                    )}
-                    {msg.usage && (
-                      <><span>•</span><span>{msg.usage.total_tokens} tokens</span></>
-                    )}
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      • {formatTime(msg.timestamp)}
-                    </span>
-                  </>
-                ) : (
-                  <span>{formatTime(msg.timestamp)}</span>
-                )}
+              
+              {/* Footer Metadata */}
+              <div className={`mt-2 flex items-center gap-2 text-[9px] text-gray-400 font-medium select-none ${msg.role === 'assistant' ? 'pt-2 border-t border-transparent' : 'justify-end'}`}>
+                 {msg.role === 'assistant' && msg.model && <span>{msg.model}</span>}
+                 <span>{formatTime(msg.timestamp)}</span>
               </div>
             </div>
-
-            {msg.role === 'user' && (
-               <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 text-gray-500 dark:text-gray-400 mt-1 shadow-sm">
-                 <User size={18} />
-               </div>
-            )}
+            {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 text-gray-500 mt-1"><User size={18} /></div>}
           </div>
         );
       })}
-
+      
+      {/* Suggestions */}
       {messages.length > 0 && messages[messages.length - 1].role === 'assistant' && messages[messages.length - 1].suggestions && (
         <div className="flex flex-col items-start gap-2 pt-2 pl-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
-           <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-             <MessageSquarePlus size={12} />
-             Next Steps
-           </div>
+           <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1"><MessageSquarePlus size={12} /> Next Steps</div>
            <div className="flex flex-wrap gap-2">
              {messages[messages.length - 1].suggestions?.map((suggestion, i) => (
-               <button
-                 key={i}
-                 onClick={() => onSuggestionClick(suggestion)}
-                 className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-500 dark:hover:border-brand-500 rounded-xl text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition-all shadow-sm active:scale-95 text-left"
-               >
-                 {suggestion}
-               </button>
+               <button key={i} onClick={() => onSuggestionClick(suggestion)} className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-500 rounded-xl text-xs font-medium transition-all shadow-sm active:scale-95 text-left">{suggestion}</button>
              ))}
            </div>
         </div>
       )}
-
       <div ref={endRef} />
     </div>
   );

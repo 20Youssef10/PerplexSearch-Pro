@@ -6,14 +6,23 @@ export interface Usage {
 }
 
 export interface Attachment {
+  name: string;
   mimeType: string;
-  data: string;
+  data: string; // Base64 or Text content
 }
 
 export interface Slide {
   title: string;
   content: string[];
   note?: string;
+}
+
+export interface ChartData {
+  type: 'bar' | 'line' | 'area' | 'pie';
+  title: string;
+  data: any[];
+  xKey: string;
+  yKeys: string[];
 }
 
 export interface YouTubeVideo {
@@ -26,8 +35,14 @@ export interface YouTubeVideo {
   publishedAt: string;
 }
 
+export interface ArenaComparison {
+  modelA: { name: string; content: string; time: number };
+  modelB: { name: string; content: string; time: number };
+  winner?: 'modelA' | 'modelB' | 'tie';
+}
+
 export interface Message {
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'arena'; // Added arena
   content: string;
   timestamp: number;
   citations?: string[];
@@ -38,11 +53,13 @@ export interface Message {
   attachments?: Attachment[];
   isPinned?: boolean;
   // For special UI rendering
-  type?: 'text' | 'image' | 'video' | 'flashcards' | 'quiz' | 'code' | 'audio' | 'slides' | 'youtube';
+  type?: 'text' | 'image' | 'video' | 'flashcards' | 'quiz' | 'code' | 'audio' | 'slides' | 'youtube' | 'chart' | 'mermaid';
   metadata?: any; 
   audioData?: string; // Base64 audio
   slidesData?: Slide[];
   youtubeData?: YouTubeVideo[];
+  chartData?: ChartData; // For Analyst Mode
+  arenaComparison?: ArenaComparison; // For Arena Mode
 }
 
 export interface Folder {
@@ -61,9 +78,10 @@ export interface Conversation {
   folderId?: string;
   workspaceId?: string;
   isTemporary?: boolean;
+  tags?: string[]; // Knowledge Graph tags
 }
 
-export type SearchMode = 'concise' | 'copilot' | 'academic' | 'writing' | 'deep-research' | 'youtube' | 'presentation';
+export type SearchMode = 'concise' | 'copilot' | 'academic' | 'writing' | 'deep-research' | 'youtube' | 'presentation' | 'analyst' | 'arena';
 
 export type AppLanguage = 'en' | 'es' | 'fr' | 'de' | 'ja' | 'zh';
 
@@ -86,7 +104,7 @@ export interface InterfaceSettings {
   soundEnabled: boolean;
   codeWrapping: boolean;
   selectedVoice: string;
-  language: AppLanguage; // New: Language
+  language: AppLanguage;
 }
 
 export interface AppSettings {
@@ -96,9 +114,10 @@ export interface AppSettings {
   googleApiKey?: string;
   openaiApiKey?: string;
   anthropicApiKey?: string;
+  ollamaBaseUrl?: string; // New: Local LLM
   systemInstruction: string;
   projectContext: string;
-  memories: string[]; // New: User Memory
+  memories: string[];
   profile: UserProfile;
   modelPreferences: ModelPreferences;
   interface: InterfaceSettings;
@@ -108,7 +127,7 @@ export interface ModelConfig {
   id: string;
   name: string;
   description: string;
-  provider: 'perplexity' | 'google' | 'openai' | 'anthropic';
+  provider: 'perplexity' | 'google' | 'openai' | 'anthropic' | 'ollama';
 }
 
 export interface PerplexityResponseChunk {

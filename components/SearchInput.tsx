@@ -3,15 +3,16 @@ import React, { useRef, useEffect, useState } from 'react';
 import { 
   ArrowUp, Globe, BookOpen, PenTool, Layout, Mic, 
   MicOff, Square, Sparkles, X, ChevronRight, Paperclip, FileText,
-  Image as ImageIcon, Youtube, MonitorPlay
+  Image as ImageIcon, Youtube, MonitorPlay, BarChart3, Swords
 } from 'lucide-react';
 import { SearchMode } from '../types';
 import { PROMPT_TEMPLATES } from '../constants';
+import { readFiles } from '../services/documentService';
 
 interface SearchInputProps {
   input: string;
   setInput: (val: string) => void;
-  onSubmit: (e?: React.FormEvent) => void;
+  onSubmit: (e?: React.FormEvent, attachments?: File[]) => void;
   onStop: () => void;
   isLoading: boolean;
   searchMode: SearchMode;
@@ -49,7 +50,13 @@ export const SearchInput: React.FC<SearchInputProps> = ({
 
   const handleSubmit = () => {
     if (!input.trim() && attachedFiles.length === 0) return;
-    onSubmit();
+    
+    // Auto-switch to Analyst mode if CSV/JSON is uploaded
+    if (attachedFiles.some(f => f.name.endsWith('.csv') || f.name.endsWith('.json'))) {
+        setSearchMode('analyst');
+    }
+
+    onSubmit(undefined, attachedFiles);
     setAttachedFiles([]);
   };
 
@@ -64,13 +71,8 @@ export const SearchInput: React.FC<SearchInputProps> = ({
       setIsListening(false);
       return;
     }
-
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Voice input is not supported in this browser.");
-      return;
-    }
-
+    if (!SpeechRecognition) { alert("Voice input is not supported."); return; }
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
     recognition.interimResults = false;
@@ -88,6 +90,8 @@ export const SearchInput: React.FC<SearchInputProps> = ({
     { id: 'academic', icon: <BookOpen size={14} />, label: 'Academic' },
     { id: 'copilot', icon: <Layout size={14} />, label: 'Assistant' },
     { id: 'youtube', icon: <Youtube size={14} />, label: 'Video' },
+    { id: 'analyst', icon: <BarChart3 size={14} />, label: 'Analyst' },
+    { id: 'arena', icon: <Swords size={14} />, label: 'Arena' },
     { id: 'presentation', icon: <MonitorPlay size={14} />, label: 'Slides' },
   ];
 
@@ -95,6 +99,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
     <div className="w-full relative">
       {showTemplates && (
         <div className="absolute bottom-full left-0 mb-4 w-full md:w-96 bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-in slide-in-from-bottom-5">
+           {/* Template UI - kept same */}
            <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
              <div className="flex items-center gap-2">
                 <Sparkles size={16} className="text-amber-500" />
@@ -112,11 +117,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
                    {cat.prompts.map((p, j) => (
                      <button
                        key={j}
-                       onClick={() => {
-                         setInput(p.text);
-                         setShowTemplates(false);
-                         textareaRef.current?.focus();
-                       }}
+                       onClick={() => { setInput(p.text); setShowTemplates(false); textareaRef.current?.focus(); }}
                        className="w-full text-left p-2.5 rounded-xl hover:bg-brand-50 dark:hover:bg-brand-900/10 flex items-center justify-between group transition-colors"
                      >
                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{p.title}</span>
@@ -156,7 +157,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={isListening ? "Listening closely..." : "Deep research query or ask anything..."}
+          placeholder={isListening ? "Listening..." : "Deep research, data analysis, or documents..."}
           rows={1}
           className="w-full p-5 pr-40 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-none outline-none max-h-[150px] overflow-y-auto font-medium"
         />
@@ -166,7 +167,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
            <button
              onClick={() => fileInputRef.current?.click()}
              className="hidden sm:block p-2.5 rounded-2xl text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-all"
-             title="Attach File"
+             title="Attach File (PDF, CSV, Images)"
            >
              <Paperclip size={20} />
            </button>

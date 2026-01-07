@@ -19,7 +19,9 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
   { id: 'gpt-4o', name: 'GPT-4o', description: 'OpenAI: Most advanced standard model', provider: 'openai' },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'OpenAI: Efficient & fast', provider: 'openai' },
   // Anthropic
-  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Anthropic: Best for coding & nuance', provider: 'anthropic' }
+  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Anthropic: Best for coding & nuance', provider: 'anthropic' },
+  // Local
+  { id: 'llama3', name: 'Llama 3 (Local)', description: 'Ollama: Local privacy-focused model', provider: 'ollama' }
 ];
 
 export const MODE_PROMPTS: Record<string, string> = {
@@ -35,7 +37,12 @@ export const MODE_PROMPTS: Record<string, string> = {
       { "title": "Slide Title", "content": ["Bullet 1", "Bullet 2"], "note": "Speaker notes" }
     ]
   }
-  Do not include markdown formatting like \`\`\`json.`
+  Do not include markdown formatting like \`\`\`json.`,
+  analyst: `You are a Data Analyst. I will provide data in CSV/JSON format. 
+  Analyze it and identify trends. 
+  If appropriate, output a JSON object for a chart inside a code block tagged 'json-chart'.
+  Format: { "type": "bar|line|area|pie", "title": "Chart Title", "data": [{"name": "A", "value": 10}, ...], "xKey": "name", "yKeys": ["value"] }`,
+  arena: "You are a competitor in a model arena. Give your absolute best, most accurate answer."
 };
 
 export const FOLLOW_UP_INSTRUCTION = `

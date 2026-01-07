@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -6,17 +5,19 @@ import { MessageList } from './components/MessageList';
 import { SearchInput } from './components/SearchInput';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Canvas } from './components/Canvas';
-import { Message, Conversation, Folder, SearchMode, AppSettings, Usage, Workspace, Gem, CanvasDocument, AppLanguage } from './types';
+import { Message, Conversation, Folder, SearchMode, AppSettings, Usage, Workspace, Gem, CanvasDocument, AppLanguage, Attachment } from './types';
 import { streamCompletion } from './services/perplexityService';
 import { streamGeminiCompletion } from './services/geminiService';
 import { streamOpenAICompletion } from './services/openaiService';
 import { streamAnthropicCompletion } from './services/anthropicService';
+import { streamOllamaCompletion } from './services/ollamaService';
 import { searchYouTube } from './services/youtubeService';
+import { readFiles } from './services/documentService';
 import { DEFAULT_MODEL, NEW_CONVERSATION_ID, MODE_PROMPTS, FOLLOW_UP_INSTRUCTION, AVAILABLE_MODELS, DEFAULT_WORKSPACES, DEFAULT_GEMS } from './constants';
 import { subscribeToAuth, getUserData, saveUserData, rtdb } from './services/firebase';
 import { User } from 'firebase/auth';
 import { ref, onValue } from 'firebase/database';
-import { Shield, AlertCircle, X } from 'lucide-react';
+import { AlertCircle, X } from 'lucide-react';
 
 const ADMIN_EMAIL = "youssef2010.mahmoud@gmail.com";
 
@@ -54,7 +55,7 @@ const App: React.FC = () => {
   const [currentId, setCurrentId] = useState<string>(NEW_CONVERSATION_ID);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Default closed on mobile
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
   const [searchMode, setSearchMode] = useState<SearchMode>('concise');
   
   // New Features State
@@ -70,7 +71,6 @@ const App: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const saveTimeoutRef = useRef<any>(null);
 
-  // Derived State
   const isAdmin = user?.email === ADMIN_EMAIL;
   
   const currentConversation = conversations.find(c => c.id === currentId) || {
@@ -83,24 +83,18 @@ const App: React.FC = () => {
 
   const messages = currentConversation.messages;
 
-  // Responsive Sidebar Check
   useEffect(() => {
-    const handleResize = () => {
-       if (window.innerWidth >= 768) setIsSidebarOpen(true);
-       else setIsSidebarOpen(false);
-    };
+    const handleResize = () => { if (window.innerWidth >= 768) setIsSidebarOpen(true); else setIsSidebarOpen(false); };
     window.addEventListener('resize', handleResize);
-    handleResize(); // Init
+    handleResize(); 
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Firebase Auth & Sync
   useEffect(() => {
     const unsubscribe = subscribeToAuth(async (currentUser) => {
       setUser(currentUser);
       if (currentUser && rtdb) {
         onValue(ref(rtdb, `users/${currentUser.uid}/banned`), (snap) => setIsBanned(snap.val() === true));
-        
         try {
           const cloudData = await getUserData(currentUser.uid);
           if (cloudData) {
@@ -114,14 +108,10 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // System Broadcast
   useEffect(() => {
-      if (rtdb) {
-          return onValue(ref(rtdb, 'system/broadcast'), (snap) => setBroadcast(snap.exists() ? snap.val() : null));
-      }
+      if (rtdb) return onValue(ref(rtdb, 'system/broadcast'), (snap) => setBroadcast(snap.exists() ? snap.val() : null));
   }, []);
 
-  // Persistence
   useEffect(() => {
     if (isTemporary) return;
     localStorage.setItem('conversations', JSON.stringify(conversations));
@@ -137,14 +127,20 @@ const App: React.FC = () => {
   }, [conversations, folders, settings, user, isTemporary]);
 
   useEffect(() => {
-    document.documentElement.className = settings.theme === 'system' 
-       ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : '') 
-       : settings.theme;
+    document.documentElement.className = settings.theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : '') : settings.theme;
   }, [settings.theme]);
 
   const handleNewChat = () => { setCurrentId(NEW_CONVERSATION_ID); setInput(''); setCurrentView('chat'); if(window.innerWidth < 768) setIsSidebarOpen(false); };
   const handleClearHistory = () => { setConversations([]); setFolders([]); setCurrentId(NEW_CONVERSATION_ID); };
   
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+    }
+  };
+
   const generateAutoTitle = async (convoId: string, firstQuery: string) => {
      if (!settings.apiKey) return;
      try {
@@ -159,20 +155,18 @@ const App: React.FC = () => {
      } catch (e) {}
   };
 
-  const handleStopGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-      setIsLoading(false);
-    }
-  };
-
-  const handleSubmit = async (e?: React.FormEvent, overrideInput?: string) => {
+  const handleSubmit = async (e?: React.FormEvent, overrideInput?: string, fileAttachments?: File[]) => {
     e?.preventDefault();
     const query = (overrideInput || input).trim();
-    if (!query || isLoading) return;
+    if ((!query && (!fileAttachments || fileAttachments.length === 0)) || isLoading) return;
 
-    // YOUTUBE MODE SPECIAL HANDLING
+    // Process attachments
+    let attachments: Attachment[] = [];
+    if (fileAttachments && fileAttachments.length > 0) {
+        attachments = await readFiles(fileAttachments);
+    }
+
+    // 1. YouTube Mode
     if (searchMode === 'youtube') {
        const userMsg: Message = { role: 'user', content: query, timestamp: Date.now() };
        const tempId = currentId === NEW_CONVERSATION_ID ? Date.now().toString() : currentId;
@@ -194,48 +188,27 @@ const App: React.FC = () => {
 
        try {
          const videos = await searchYouTube(query);
-         const assistantMsg: Message = {
-            role: 'assistant',
-            content: `Here are the top videos for "${query}":`,
-            timestamp: Date.now(),
-            type: 'youtube',
-            youtubeData: videos
-         };
-         
          setConversations(prev => {
             const copy = [...prev];
             const target = copy.find(c => c.id === tempId);
-            if (target) target.messages.push(assistantMsg);
+            if (target) target.messages.push({ role: 'assistant', content: `Videos for "${query}":`, timestamp: Date.now(), type: 'youtube', youtubeData: videos });
             return copy;
          });
-       } catch (err: any) {
-         alert("YouTube Error: " + err.message);
-       } finally {
-         setIsLoading(false);
-       }
+       } catch (err: any) { alert(err.message); } 
+       finally { setIsLoading(false); }
        return;
     }
 
-    // STANDARD LLM HANDLING
-    const modelConfig = AVAILABLE_MODELS.find(m => m.id === settings.model);
-    const provider = modelConfig?.provider || 'perplexity';
-    let apiKey = settings.apiKey; 
-    if (provider === 'google') apiKey = settings.googleApiKey || '';
-    if (provider === 'openai') apiKey = settings.openaiApiKey || '';
-    if (provider === 'anthropic') apiKey = settings.anthropicApiKey || '';
-
-    if (!apiKey) { alert(`Missing API Key for ${provider}`); return; }
-
-    const userMsg: Message = { role: 'user', content: query, timestamp: Date.now() };
+    // Standard Message Setup
+    const userMsg: Message = { role: 'user', content: query, timestamp: Date.now(), attachments };
     const tempId = currentId === NEW_CONVERSATION_ID ? Date.now().toString() : currentId;
-
     let updatedConversations = [...conversations];
     let activeConvo = updatedConversations.find(c => c.id === tempId);
 
     if (!activeConvo) {
-      activeConvo = { id: tempId, title: query, messages: [userMsg], createdAt: Date.now(), updatedAt: Date.now(), isTemporary, workspaceId: currentWorkspaceId };
+      activeConvo = { id: tempId, title: query || 'New Chat', messages: [userMsg], createdAt: Date.now(), updatedAt: Date.now(), isTemporary, workspaceId: currentWorkspaceId };
       if (!isTemporary) updatedConversations.unshift(activeConvo);
-      if (provider === 'perplexity' && !isTemporary) generateAutoTitle(tempId, query);
+      if (!isTemporary && query) generateAutoTitle(tempId, query);
     } else {
       activeConvo.messages.push(userMsg);
       if (!isTemporary) {
@@ -248,6 +221,73 @@ const App: React.FC = () => {
     setCurrentId(tempId);
     setInput('');
     setIsLoading(true);
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
+    // 2. Arena Mode (Split Execution)
+    if (searchMode === 'arena') {
+       const modelA = 'sonar-pro';
+       const modelB = 'gpt-4o'; // Or fallback to available
+       // Check if keys exist
+       if (!settings.apiKey || !settings.openaiApiKey) {
+           alert("Arena requires both Perplexity and OpenAI keys.");
+           setIsLoading(false);
+           return;
+       }
+
+       const arenaMsgId = Date.now();
+       setConversations(prev => {
+          const copy = [...prev];
+          const target = copy.find(c => c.id === tempId);
+          if (target) target.messages.push({ 
+             role: 'arena', 
+             content: '', 
+             timestamp: arenaMsgId, 
+             arenaComparison: { 
+                 modelA: { name: 'Perplexity Sonar', content: 'Thinking...', time: 0 }, 
+                 modelB: { name: 'GPT-4o', content: 'Thinking...', time: 0 } 
+             }
+          });
+          return copy;
+       });
+
+       try {
+          // Parallel execution
+          const start = Date.now();
+          const p1 = streamCompletion([{role:'user', content: query, timestamp: start}], modelA, settings.apiKey, (text) => {
+             setConversations(prev => {
+                const copy = [...prev];
+                const msg = copy.find(c => c.id === tempId)?.messages.find(m => m.timestamp === arenaMsgId);
+                if (msg && msg.arenaComparison) { msg.arenaComparison.modelA.content = text; msg.arenaComparison.modelA.time = Date.now() - start; }
+                return copy;
+             });
+          }, signal);
+
+          const p2 = streamOpenAICompletion([{role:'user', content: query, timestamp: start}], modelB, settings.openaiApiKey!, (text) => {
+             setConversations(prev => {
+                const copy = [...prev];
+                const msg = copy.find(c => c.id === tempId)?.messages.find(m => m.timestamp === arenaMsgId);
+                if (msg && msg.arenaComparison) { msg.arenaComparison.modelB.content = text; msg.arenaComparison.modelB.time = Date.now() - start; }
+                return copy;
+             });
+          }, signal);
+
+          await Promise.all([p1, p2]);
+       } catch (e) {}
+       setIsLoading(false);
+       return;
+    }
+
+    // 3. Normal Execution (Analyst, Doc, etc.)
+    const modelConfig = AVAILABLE_MODELS.find(m => m.id === settings.model);
+    const provider = modelConfig?.provider || 'perplexity';
+    let apiKey = settings.apiKey;
+    if (provider === 'google') apiKey = settings.googleApiKey || '';
+    if (provider === 'openai') apiKey = settings.openaiApiKey || '';
+    if (provider === 'anthropic') apiKey = settings.anthropicApiKey || '';
+    if (provider === 'ollama') apiKey = 'dummy'; // No key needed
+
+    if (!apiKey && provider !== 'ollama') { alert(`Missing API Key for ${provider}`); setIsLoading(false); return; }
 
     const assistantMsgId = Date.now() + 1;
     setConversations(prev => {
@@ -257,17 +297,12 @@ const App: React.FC = () => {
       return copy;
     });
 
-    abortControllerRef.current = new AbortController();
-
-    // Construct System Prompt
-    const memoryContext = settings.memories?.length ? `USER MEMORY:\n${settings.memories.map(m => `- ${m}`).join('\n')}` : '';
     const combinedSystem = `
       ${MODE_PROMPTS[searchMode]}
       ${settings.systemInstruction}
-      ${memoryContext}
       RESEARCH CONTEXT: ${settings.projectContext}
       ${currentView === 'canvas' ? `CANVAS MODE. Current doc:\n${canvasDoc.content}` : ''}
-      ${searchMode !== 'presentation' ? FOLLOW_UP_INSTRUCTION : ''}
+      ${searchMode !== 'presentation' && searchMode !== 'analyst' ? FOLLOW_UP_INSTRUCTION : ''}
     `.trim();
 
     try {
@@ -291,21 +326,26 @@ const App: React.FC = () => {
       };
 
       const messagesForApi = activeConvo.messages.filter(m => m.timestamp < assistantMsgId);
-      const signal = abortControllerRef.current.signal;
+
+      // Inject File Context for RAG
+      if (attachments.length > 0) {
+         const fileContext = attachments.map(a => `FILE: ${a.name}\nCONTENT:\n${a.data}`).join('\n\n');
+         messagesForApi[messagesForApi.length - 1].content += `\n\n[ATTACHED FILES]\n${fileContext}`;
+      }
 
       if (provider === 'perplexity') await streamCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
       else if (provider === 'google') await streamGeminiCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
       else if (provider === 'openai') await streamOpenAICompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
       else if (provider === 'anthropic') await streamAnthropicCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
+      else if (provider === 'ollama') await streamOllamaCompletion(messagesForApi, settings.model, settings.ollamaBaseUrl, onChunk, signal, combinedSystem);
 
-      // Post-processing for special modes
+      // Post-Processing for Analyst/Slides
       setConversations(prev => {
         const copy = [...prev];
         const target = copy.find(c => c.id === tempId);
         if (target) {
            const lastMsg = target.messages[target.messages.length - 1];
            
-           // Detect Slides JSON
            if (searchMode === 'presentation' || fullContent.includes('"slides":')) {
              try {
                 const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
@@ -314,10 +354,22 @@ const App: React.FC = () => {
                    if (data.slides) {
                       lastMsg.type = 'slides';
                       lastMsg.slidesData = data.slides;
-                      lastMsg.content = ""; // Hide raw JSON
+                      lastMsg.content = ""; 
                    }
                 }
              } catch(e) {}
+           }
+           if (searchMode === 'analyst' || fullContent.includes('"type": "bar"')) {
+              try {
+                  const jsonMatch = fullContent.match(/\{[\s\S]*"type"[\s\S]*\}/);
+                  if (jsonMatch) {
+                      const data = JSON.parse(jsonMatch[0]);
+                      if (data.type && data.data) {
+                          lastMsg.chartData = data;
+                          // Keep text explanation if it exists outside JSON
+                      }
+                  }
+              } catch (e) {}
            }
         }
         return copy;
@@ -347,10 +399,7 @@ const App: React.FC = () => {
            <AlertCircle size={20} /> <span className="font-bold text-sm">{broadcast.message}</span> <button onClick={() => setBroadcast(null)}><X size={14}/></button>
         </div>
       )}
-
-      {/* Mobile Overlay */}
       {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setIsSidebarOpen(false)} />}
-
       <div className={`fixed inset-y-0 left-0 z-30 w-72 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <Sidebar 
           conversations={conversations.filter(c => c.workspaceId === currentWorkspaceId || !c.workspaceId)}
@@ -385,7 +434,6 @@ const App: React.FC = () => {
                 user={user} isTemporary={isTemporary} onToggleTemporary={() => setIsTemporary(!isTemporary)}
                 onExport={(fmt) => { /* Reuse existing export logic */ }}
               />
-
               <main className="flex-1 overflow-y-auto scroll-smooth">
                 {messages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center p-4 text-center">
@@ -393,9 +441,7 @@ const App: React.FC = () => {
                       <h1 className="text-4xl font-black text-gray-800 dark:text-gray-100 tracking-tight">PerplexSearch Pro</h1>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-xl mx-auto pt-4">
                          {["Analyze the latest crypto trends", "Create a marketing slide deck", "Find tutorials on React 19", "Help me debug this Python script"].map(q => (
-                           <button key={q} onClick={() => { setInput(q); handleSubmit(undefined, q); }} className="p-4 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-brand-500 transition-all text-sm text-left font-bold text-gray-600 dark:text-gray-300 shadow-sm">
-                             {q}
-                           </button>
+                           <button key={q} onClick={() => { setInput(q); handleSubmit(undefined, q); }} className="p-4 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-brand-500 transition-all text-sm text-left font-bold text-gray-600 dark:text-gray-300 shadow-sm">{q}</button>
                          ))}
                       </div>
                     </div>
@@ -406,7 +452,6 @@ const App: React.FC = () => {
                   </div>
                 )}
               </main>
-
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent dark:from-gray-900 dark:via-gray-900 pt-16 pb-6 px-4">
                 <div className="max-w-3xl mx-auto">
                   <SearchInput 
@@ -416,7 +461,6 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
-
             {currentView === 'canvas' && (
               <Canvas 
                 document={canvasDoc} 
@@ -433,4 +477,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-    

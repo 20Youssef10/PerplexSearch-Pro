@@ -2,11 +2,10 @@
 import React, { useState } from 'react';
 import { Conversation, Folder, Workspace, Gem } from '../types';
 import { 
-  MessageSquare, Trash2, PlusCircle, Search, Zap, 
+  MessageSquare, Trash2, PlusCircle, Search, 
   Folder as FolderIcon, FolderPlus, ChevronRight, ChevronDown, 
-  Settings as SettingsIcon, ShieldCheck, History, Bookmark,
-  Briefcase, User as UserIcon, Gem as GemIcon, Layout, Users, 
-  GraduationCap
+  Settings as SettingsIcon, ShieldCheck,
+  Briefcase, User as UserIcon, Layout, GraduationCap, Network
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -32,7 +31,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ 
   conversations, folders, currentId, workspaces, currentWorkspaceId, gems,
   onSelectWorkspace, onSelectGem, onSelect, onDelete, onNew,
-  onCreateFolder, onMoveToFolder, onDeleteFolder, onOpenCanvas, isAdmin, onGoAdmin
+  onCreateFolder, onDeleteFolder, onOpenCanvas, isAdmin, onGoAdmin
 }) => {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -42,19 +41,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
 
   const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId) || workspaces[0];
+  const filteredConversations = conversations.filter(c => c.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
-  // Filter conversations based on search
-  const filteredConversations = conversations.filter(c => 
-    c.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const formatDate = (ts: number) => {
-    return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  };
-
-  const toggleFolder = (id: string) => {
-    setExpandedFolders(prev => ({ ...prev, [id]: !prev[id] }));
-  };
+  const toggleFolder = (id: string) => setExpandedFolders(prev => ({ ...prev, [id]: !prev[id] }));
 
   const handleCreateFolder = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,50 +54,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const renderConversation = (conv: Conversation) => {
-    const msgCount = conv.messages.length;
-    const isActive = currentId === conv.id;
-
-    return (
-      <div 
-        key={conv.id}
-        className={`group flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${
-          isActive 
-            ? 'bg-brand-50 dark:bg-brand-900/30' 
-            : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-        }`}
-        onClick={() => onSelect(conv.id)}
-      >
-        <MessageSquare size={16} className={`mt-1 flex-shrink-0 ${isActive ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400 dark:text-gray-500'}`} />
-        <div className="flex-1 min-w-0">
-          <h3 className={`text-sm font-bold truncate ${isActive ? 'text-brand-700 dark:text-brand-300' : 'text-gray-700 dark:text-gray-300'}`}>
-            {conv.title}
-          </h3>
-          <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tighter mt-0.5">
-            {formatDate(conv.createdAt)} • {msgCount} turns
-          </p>
-        </div>
-        <button 
-          onClick={(e) => { e.stopPropagation(); onDelete(conv.id); }}
-          className="p-1 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all"
-        >
-          <Trash2 size={14} />
-        </button>
-      </div>
-    );
-  };
-
-  const unassignedConvos = filteredConversations.filter(c => !c.folderId);
-
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
       
       {/* Workspace Selector */}
       <div className="p-3 border-b border-gray-100 dark:border-gray-800 relative">
-        <button 
-          onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
-          className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
-        >
+        <button onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all">
           <div className="w-8 h-8 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg flex items-center justify-center">
              {currentWorkspace.id === 'personal' ? <UserIcon size={16} /> : <Briefcase size={16} />}
           </div>
@@ -122,23 +73,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {showWorkspaceMenu && (
           <div className="absolute top-full left-2 right-2 mt-1 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in zoom-in-95 duration-200">
             {workspaces.map(w => (
-              <button
-                key={w.id}
-                onClick={() => {
-                  onSelectWorkspace(w.id);
-                  setShowWorkspaceMenu(false);
-                }}
-                className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm font-medium"
-              >
-                {w.id === 'personal' ? <UserIcon size={16} /> : <Briefcase size={16} />}
-                {w.name}
-                {w.id === currentWorkspaceId && <div className="ml-auto w-2 h-2 rounded-full bg-brand-500"></div>}
+              <button key={w.id} onClick={() => { onSelectWorkspace(w.id); setShowWorkspaceMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm font-medium">
+                {w.id === 'personal' ? <UserIcon size={16} /> : <Briefcase size={16} />} {w.name}
               </button>
             ))}
             <div className="border-t border-gray-100 dark:border-gray-800 p-2">
-               <button className="w-full flex items-center gap-2 p-2 text-xs font-bold text-gray-500 hover:text-brand-600 transition-colors">
-                 <PlusCircle size={14} /> Create Workspace
-               </button>
+               <button className="w-full flex items-center gap-2 p-2 text-xs font-bold text-gray-500 hover:text-brand-600 transition-colors"><PlusCircle size={14} /> Create Workspace</button>
             </div>
           </div>
         )}
@@ -147,155 +87,94 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-4 space-y-3 pb-0">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-gray-400" size={14} />
-          <input 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search conversations..."
-            className="w-full pl-9 pr-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs font-medium outline-none focus:ring-2 focus:ring-brand-500/50"
-          />
+          <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full pl-9 pr-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs font-medium outline-none focus:ring-2 focus:ring-brand-500/50" />
         </div>
 
         <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-          <button 
-            onClick={() => setActiveTab('chats')}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === 'chats' ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Chats
-          </button>
-          <button 
-            onClick={() => setActiveTab('gems')}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === 'gems' ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Gems
-          </button>
+          <button onClick={() => setActiveTab('chats')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === 'chats' ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-500'}`}>Chats</button>
+          <button onClick={() => setActiveTab('gems')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === 'gems' ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-500'}`}>Gems</button>
         </div>
 
-        {activeTab === 'chats' ? (
+        {activeTab === 'chats' && (
           <>
-            <button 
-              onClick={onNew}
-              className="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white py-2.5 px-4 rounded-xl transition-all shadow-lg shadow-brand-500/20 font-bold text-sm active:scale-[0.98]"
-            >
-              <PlusCircle size={16} />
-              <span>New Research</span>
+            <button onClick={onNew} className="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white py-2.5 px-4 rounded-xl transition-all shadow-lg shadow-brand-500/20 font-bold text-sm active:scale-[0.98]">
+              <PlusCircle size={16} /><span>New Research</span>
             </button>
-            <button 
-              onClick={onOpenCanvas}
-              className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2.5 px-4 rounded-xl transition-all shadow-lg shadow-purple-500/20 font-bold text-sm active:scale-[0.98]"
-            >
-              <Layout size={16} />
-              <span>Open Canvas</span>
+            <button onClick={onOpenCanvas} className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2.5 px-4 rounded-xl transition-all shadow-lg shadow-purple-500/20 font-bold text-sm active:scale-[0.98]">
+              <Layout size={16} /><span>Open Canvas</span>
             </button>
           </>
-        ) : (
-          <div className="text-xs text-center text-gray-400 py-1">Select a Gem to start a specialized chat</div>
-        )}
-
-        {isAdmin && (
-          <button 
-            onClick={onGoAdmin}
-            className="w-full flex items-center gap-3 px-4 py-2 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all font-bold text-xs uppercase tracking-widest"
-          >
-            <ShieldCheck size={14} />
-            <span>Admin</span>
-          </button>
         )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-4 space-y-1">
         {activeTab === 'chats' && (
           <>
-            <div className="flex items-center justify-between px-3 py-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-              <span>Folders</span>
-              <button onClick={() => setIsCreatingFolder(true)} className="hover:text-brand-500"><FolderPlus size={14} /></button>
+            <div className="flex items-center justify-between px-3 py-2 text-xs font-bold text-gray-400 uppercase tracking-widest">
+              <span>Folders</span><button onClick={() => setIsCreatingFolder(true)} className="hover:text-brand-500"><FolderPlus size={14} /></button>
             </div>
             
             {isCreatingFolder && (
               <form onSubmit={handleCreateFolder} className="px-2 mb-2">
-                <input 
-                  autoFocus
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  placeholder="New folder..."
-                  onBlur={() => !newFolderName && setIsCreatingFolder(false)}
-                  className="w-full bg-gray-100 dark:bg-gray-800 border-none text-sm p-3 rounded-xl outline-none ring-1 ring-brand-500 font-medium"
-                />
+                <input autoFocus value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder="New folder..." onBlur={() => !newFolderName && setIsCreatingFolder(false)} className="w-full bg-gray-100 dark:bg-gray-800 border-none text-sm p-3 rounded-xl outline-none ring-1 ring-brand-500 font-medium" />
               </form>
             )}
 
             {folders.map(folder => {
-              // Also filter conversations inside folders
               const folderConvos = filteredConversations.filter(c => c.folderId === folder.id);
               const isExpanded = expandedFolders[folder.id];
-
-              // Hide empty folders during search unless name matches
               if (searchQuery && folderConvos.length === 0 && !folder.name.toLowerCase().includes(searchQuery)) return null;
 
               return (
                 <div key={folder.id} className="space-y-0.5">
-                  <div 
-                    className="flex items-center gap-2 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer group"
-                    onClick={() => toggleFolder(folder.id)}
-                  >
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer group" onClick={() => toggleFolder(folder.id)}>
                     {isExpanded ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
                     <FolderIcon size={16} className={`${folderConvos.length > 0 ? 'text-amber-500' : 'text-gray-300'}`} />
                     <span className="flex-1 text-sm font-bold text-gray-600 dark:text-gray-400 truncate">{folder.name}</span>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id); }}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id); }} className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"><Trash2 size={12} /></button>
                   </div>
                   {(isExpanded || searchQuery) && (
                     <div className="ml-5 pl-2 border-l border-gray-100 dark:border-gray-800 space-y-0.5 py-1">
-                      {folderConvos.map(renderConversation)}
+                      {folderConvos.map(c => (
+                        <div key={c.id} onClick={() => onSelect(c.id)} className={`group flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${currentId === c.id ? 'bg-brand-50 dark:bg-brand-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                           <MessageSquare size={16} className={`mt-1 flex-shrink-0 ${currentId === c.id ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400'}`} />
+                           <div className="flex-1 min-w-0"><h3 className="text-sm font-bold truncate">{c.title}</h3></div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
               );
             })}
 
-            <div className="flex items-center gap-2 px-3 py-2 mt-4 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-              <span>{searchQuery ? 'Search Results' : 'Recent Activity'}</span>
+            <div className="flex items-center gap-2 px-3 py-2 mt-4 text-xs font-bold text-gray-400 uppercase tracking-widest">
+              <span>{searchQuery ? 'Search Results' : 'Recent'}</span>
             </div>
-            {unassignedConvos.length > 0 ? unassignedConvos.map(renderConversation) : (
-               <div className="text-center py-4 text-xs text-gray-400">
-                 {searchQuery ? 'No conversations found' : 'No history yet'}
+            {filteredConversations.filter(c => !c.folderId).map(c => (
+               <div key={c.id} onClick={() => onSelect(c.id)} className={`group flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${currentId === c.id ? 'bg-brand-50 dark:bg-brand-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                   <MessageSquare size={16} className={`mt-1 flex-shrink-0 ${currentId === c.id ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400'}`} />
+                   <div className="flex-1 min-w-0">
+                     <h3 className="text-sm font-bold truncate">{c.title}</h3>
+                     <p className="text-[10px] text-gray-400 font-bold">{new Date(c.createdAt).toLocaleDateString()}</p>
+                   </div>
+                   <button onClick={(e) => { e.stopPropagation(); onDelete(c.id); }} className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"><Trash2 size={14} /></button>
                </div>
-            )}
+            ))}
           </>
         )}
 
         {activeTab === 'gems' && (
-          /* Gems rendering kept same */
           <div className="space-y-2 p-1">
             {gems.map(gem => (
-              <button
-                key={gem.id}
-                onClick={() => onSelectGem(gem)}
-                className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-left transition-all border border-transparent hover:border-gray-200 dark:hover:border-gray-700"
-              >
-                <div className="text-xl bg-white dark:bg-gray-700 w-10 h-10 flex items-center justify-center rounded-lg shadow-sm">
-                  {gem.icon}
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-gray-800 dark:text-gray-200">{gem.name}</h3>
-                  <p className="text-[10px] text-gray-500 leading-tight mt-0.5">{gem.description}</p>
-                </div>
+              <button key={gem.id} onClick={() => onSelectGem(gem)} className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-left transition-all border border-transparent hover:border-gray-200 dark:hover:border-gray-700">
+                <div className="text-xl bg-white dark:bg-gray-700 w-10 h-10 flex items-center justify-center rounded-lg shadow-sm">{gem.icon}</div>
+                <div><h3 className="font-bold text-sm">{gem.name}</h3><p className="text-[10px] text-gray-500 leading-tight mt-0.5">{gem.description}</p></div>
               </button>
             ))}
-            {/* Tools Section kept same */}
              <div className="pt-4 border-t border-gray-100 dark:border-gray-800 mt-4">
               <p className="px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Tools</p>
-              <button className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium text-gray-600 dark:text-gray-300">
-                <GraduationCap size={16} className="text-blue-500" />
-                Quiz Maker
-              </button>
-              <button className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium text-gray-600 dark:text-gray-300">
-                <Layout size={16} className="text-green-500" />
-                Flashcards
-              </button>
+              <button className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><GraduationCap size={16} className="text-blue-500" /> Quiz Maker</button>
+              <button className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><Network size={16} className="text-pink-500" /> Knowledge Graph</button>
             </div>
           </div>
         )}

@@ -10,6 +10,21 @@ export interface Attachment {
   data: string;
 }
 
+export interface Slide {
+  title: string;
+  content: string[];
+  note?: string;
+}
+
+export interface YouTubeVideo {
+  id: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  channelTitle: string;
+  publishedAt: string;
+}
+
 export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -20,10 +35,13 @@ export interface Message {
   usage?: Usage;
   suggestions?: string[];
   attachments?: Attachment[];
-  isPinned?: boolean; // New: Pin feature
+  isPinned?: boolean;
   // For special UI rendering
-  type?: 'text' | 'image' | 'video' | 'flashcards' | 'quiz' | 'code';
+  type?: 'text' | 'image' | 'video' | 'flashcards' | 'quiz' | 'code' | 'audio' | 'slides' | 'youtube';
   metadata?: any; 
+  audioData?: string; // Base64 audio
+  slidesData?: Slide[];
+  youtubeData?: YouTubeVideo[];
 }
 
 export interface Folder {
@@ -44,19 +62,21 @@ export interface Conversation {
   isTemporary?: boolean;
 }
 
-export type SearchMode = 'concise' | 'copilot' | 'academic' | 'writing' | 'deep-research';
+export type SearchMode = 'concise' | 'copilot' | 'academic' | 'writing' | 'deep-research' | 'youtube' | 'presentation';
+
+export type AppLanguage = 'en' | 'es' | 'fr' | 'de' | 'ja' | 'zh';
 
 export interface UserProfile {
   displayName: string;
   jobTitle: string;
-  bio: string; // Context for the AI
+  bio: string;
   avatarUrl: string;
 }
 
 export interface ModelPreferences {
   temperature: number;
   topP: number;
-  customInstructions: Record<string, string>; // Keyed by model ID
+  customInstructions: Record<string, string>;
 }
 
 export interface InterfaceSettings {
@@ -64,7 +84,8 @@ export interface InterfaceSettings {
   compactMode: boolean;
   soundEnabled: boolean;
   codeWrapping: boolean;
-  selectedVoice: string; // TTS Voice URI
+  selectedVoice: string;
+  language: AppLanguage; // New: Language
 }
 
 export interface AppSettings {
@@ -76,7 +97,7 @@ export interface AppSettings {
   anthropicApiKey?: string;
   systemInstruction: string;
   projectContext: string;
-  // New Sections
+  memories: string[]; // New: User Memory
   profile: UserProfile;
   modelPreferences: ModelPreferences;
   interface: InterfaceSettings;

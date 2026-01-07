@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { Message, Attachment, Usage } from '../types';
 
@@ -5,11 +6,38 @@ export const streamGeminiCompletion = async (
   messages: Message[],
   model: string,
   apiKey: string,
-  onChunk: (content: string, citations?: string[], usage?: Usage, grounding?: any) => void,
+  onChunk: (content: string, citations?: string[], usage?: Usage, grounding?: any, audioData?: string) => void,
   signal?: AbortSignal,
   systemPrompt?: string
 ) => {
   const ai = new GoogleGenAI({ apiKey });
+
+  // 0. AUDIO GENERATION
+  if (model.includes('native-audio')) {
+    const lastMsg = messages[messages.length - 1];
+    try {
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: { parts: [{ text: lastMsg.content }] },
+            config: {
+                responseModalities: ['AUDIO'],
+                speechConfig: {
+                    voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+                }
+            }
+        });
+        
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (base64Audio) {
+            onChunk("", undefined, undefined, undefined, base64Audio);
+        } else {
+            onChunk("Error: No audio data returned.");
+        }
+    } catch (e: any) {
+        onChunk(`Audio Generation Error: ${e.message}`);
+    }
+    return;
+  }
 
   // 1. VEO VIDEO GENERATION
   if (model === 'veo-3.1-fast-generate-preview') {
@@ -29,7 +57,6 @@ export const streamGeminiCompletion = async (
         }
       });
 
-      // Poll for completion
       while (!operation.done) {
         if (signal?.aborted) throw new Error("Aborted");
         await new Promise(resolve => setTimeout(resolve, 5000));
@@ -38,23 +65,20 @@ export const streamGeminiCompletion = async (
 
       const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
       if (videoUri) {
-        // Veo URIs require the API Key appended
         const secureUrl = `${videoUri}&key=${apiKey}`;
-        // Output as Markdown Image with special alt text so MessageList can render it as a video
         onChunk(`\n![Generated Video](${secureUrl})\n`, undefined, undefined, undefined);
       } else {
         throw new Error("Video generation completed but no URI was returned.");
       }
     } catch (e: any) {
       if (e.message !== "Aborted") {
-        console.error("Veo Error:", e);
         onChunk(`\n\n**Error generating video:** ${e.message}`, undefined, undefined, undefined);
       }
     }
     return;
   }
 
-  // 2. IMAGE GENERATION/EDITING
+  // 2. IMAGE GENERATION/EDITING (Gemini 2.5 Flash Image)
   if (model === 'gemini-2.5-flash-image') {
     const contents = messages.map(m => {
         if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
@@ -105,7 +129,6 @@ export const streamGeminiCompletion = async (
       }
 
     } catch(e: any) {
-       console.error("Image Gen Error:", e);
        onChunk(`\n\n**Error generating image:** ${e.message}`, undefined, undefined, undefined);
     }
     return;
@@ -137,14 +160,11 @@ export const streamGeminiCompletion = async (
     systemInstruction: systemPrompt,
   };
 
-  // Configure based on specific model capabilities
   if (model === 'gemini-3-flash-preview') {
     config.tools = [{ googleSearch: {} }];
   } else if (model === 'gemini-3-pro-preview' || model === 'gemini-2.5-pro') {
-    // Both 3 Pro and 2.5 Pro support thinking
     config.thinkingConfig = { thinkingBudget: 2048 }; 
   } else if (model === 'gemini-2.5-flash') {
-    // 2.5 Flash often used with Maps or standard tasks
     config.tools = [{ googleMaps: {} }];
   }
 

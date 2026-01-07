@@ -1,8 +1,9 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { 
   ArrowUp, Globe, BookOpen, PenTool, Layout, Mic, 
   MicOff, Square, Sparkles, X, ChevronRight, Paperclip, FileText,
-  Image as ImageIcon
+  Image as ImageIcon, Youtube, MonitorPlay
 } from 'lucide-react';
 import { SearchMode } from '../types';
 import { PROMPT_TEMPLATES } from '../constants';
@@ -85,8 +86,9 @@ export const SearchInput: React.FC<SearchInputProps> = ({
   const modes: { id: SearchMode; icon: React.ReactNode; label: string }[] = [
     { id: 'concise', icon: <Globe size={14} />, label: 'Standard' },
     { id: 'academic', icon: <BookOpen size={14} />, label: 'Academic' },
-    { id: 'writing', icon: <PenTool size={14} />, label: 'Creative' },
     { id: 'copilot', icon: <Layout size={14} />, label: 'Assistant' },
+    { id: 'youtube', icon: <Youtube size={14} />, label: 'Video' },
+    { id: 'presentation', icon: <MonitorPlay size={14} />, label: 'Slides' },
   ];
 
   return (
@@ -163,7 +165,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
            <input type="file" ref={fileInputRef} hidden multiple onChange={handleFileAttach} />
            <button
              onClick={() => fileInputRef.current?.click()}
-             className="p-2.5 rounded-2xl text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-all"
+             className="hidden sm:block p-2.5 rounded-2xl text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-all"
              title="Attach File"
            >
              <Paperclip size={20} />
@@ -171,7 +173,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
 
            <button
              onClick={() => setShowTemplates(!showTemplates)}
-             className={`p-2.5 rounded-2xl transition-all ${
+             className={`hidden sm:block p-2.5 rounded-2xl transition-all ${
                showTemplates ? 'bg-amber-100 text-amber-600' : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20'
              }`}
              title="Prompt Library"
@@ -215,12 +217,12 @@ export const SearchInput: React.FC<SearchInputProps> = ({
         </div>
 
         <div className="px-5 pb-4 flex items-center gap-2 overflow-x-auto no-scrollbar border-t border-gray-100/50 dark:border-gray-700/50 pt-3">
-          <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-2 select-none">Research Focus</span>
+          <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-2 select-none">Focus</span>
           {modes.map(mode => (
             <button
               key={mode.id}
               onClick={() => setSearchMode(mode.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 ${
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 ${
                 searchMode === mode.id
                   ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/20 ring-2 ring-brand-500/20'
                   : 'bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'

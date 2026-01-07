@@ -3,8 +3,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { Message } from '../types';
-import { Bot, User, Copy, Check, ExternalLink, Volume2, VolumeX, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard, Pin } from 'lucide-react';
+import { Message, Slide, YouTubeVideo } from '../types';
+import { Bot, User, Copy, Check, ExternalLink, Volume2, VolumeX, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard, Pin, Play, MonitorPlay, Maximize2 } from 'lucide-react';
 import { AVAILABLE_MODELS } from '../constants';
 
 interface MessageListProps {
@@ -15,110 +15,112 @@ interface MessageListProps {
   selectedVoice?: string;
 }
 
-const CopyButton: React.FC<{ text: string }> = ({ text }) => {
-  const [copied, setCopied] = React.useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <button 
-      onClick={handleCopy}
-      className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors p-1"
-      title="Copy message"
-    >
-      {copied ? <Check size={14} /> : <Copy size={14} />}
-    </button>
-  );
+const formatTime = (timestamp: number) => {
+  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const CodeCopyButton: React.FC<{ text: string }> = ({ text }) => {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="absolute top-2 right-2 p-1.5 rounded-md bg-white/10 hover:bg-white/20 text-gray-300 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-      title="Copy code"
-    >
-      {copied ? <Check size={14} className="text-green-400" /> : <Clipboard size={14} />}
-    </button>
-  );
-};
-
-const ReasoningBlock: React.FC<{ content: string }> = ({ content }) => {
-  const [isOpen, setIsOpen] = useState(false);
+const CodeRunner: React.FC<{ code: string; language: string }> = ({ code, language }) => {
+  const [showPreview, setShowPreview] = useState(false);
   
-  if (!content) return null;
+  // Only support HTML/JS for safe preview
+  if (language !== 'html' && language !== 'javascript') return null;
+
+  const srcDoc = language === 'html' 
+    ? code 
+    : `<html><body><script>${code}</script></body></html>`;
 
   return (
-    <div className="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden">
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-2 p-3 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
-      >
-        <Brain size={14} className="text-amber-500" />
-        <span>Reasoning Process</span>
-        <div className="flex-1" />
-        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-      </button>
-      
-      {isOpen && (
-        <div className="p-3 pt-0 border-t border-gray-200 dark:border-gray-700/50">
-          <div className="prose prose-xs dark:prose-invert max-w-none text-gray-500 dark:text-gray-400 font-mono text-[10px] leading-relaxed whitespace-pre-wrap">
-            {content}
-          </div>
+    <div className="mt-2">
+      <div className="flex justify-end mb-2">
+        <button 
+          onClick={() => setShowPreview(!showPreview)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 text-brand-700 text-xs font-bold rounded-lg hover:bg-brand-100 transition-colors"
+        >
+          {showPreview ? <MonitorPlay size={14} /> : <Play size={14} />}
+          {showPreview ? 'Hide Preview' : 'Run / Preview'}
+        </button>
+      </div>
+      {showPreview && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white h-64 shadow-inner">
+          <iframe 
+            srcDoc={srcDoc} 
+            className="w-full h-full" 
+            sandbox="allow-scripts"
+            title="Code Preview"
+          />
         </div>
       )}
     </div>
   );
 };
 
-const TTSButton: React.FC<{ text: string, voiceURI?: string }> = ({ text, voiceURI }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-
-  const toggleSpeech = () => {
-    if (isPlaying) {
-      window.speechSynthesis.cancel();
-      setIsPlaying(false);
-    } else {
-      // Strip markdown for cleaner speech
-      const cleanText = text.replace(/\[\d+\]/g, '').replace(/[*_#`]/g, '').replace(/<[^>]*>/g, '');
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      
-      if (voiceURI) {
-        const voices = window.speechSynthesis.getVoices();
-        const selected = voices.find(v => v.voiceURI === voiceURI);
-        if (selected) utterance.voice = selected;
-      }
-
-      utterance.onend = () => setIsPlaying(false);
-      utteranceRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
-      setIsPlaying(true);
-    }
-  };
+const SlideDeck: React.FC<{ slides: Slide[] }> = ({ slides }) => {
+  const [current, setCurrent] = useState(0);
 
   return (
-    <button 
-      onClick={toggleSpeech}
-      className={`transition-colors p-1 ${isPlaying ? 'text-brand-500 animate-pulse' : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'}`}
-      title={isPlaying ? "Stop listening" : "Listen to response"}
-    >
-      {isPlaying ? <VolumeX size={14} /> : <Volume2 size={14} />}
-    </button>
+    <div className="my-4 bg-gray-900 text-white rounded-xl overflow-hidden aspect-video shadow-2xl relative flex flex-col">
+      <div className="flex-1 flex items-center justify-center p-8 text-center bg-gradient-to-br from-gray-800 to-black">
+        <div className="max-w-2xl w-full">
+           <h2 className="text-2xl md:text-3xl font-bold mb-6 text-brand-400">{slides[current].title}</h2>
+           <ul className="space-y-3 text-left inline-block max-w-lg">
+             {slides[current].content.map((item, i) => (
+               <li key={i} className="flex items-start gap-2 text-lg text-gray-300">
+                 <span className="text-brand-500 mt-1.5">•</span>
+                 {item}
+               </li>
+             ))}
+           </ul>
+        </div>
+      </div>
+      
+      {/* Controls */}
+      <div className="bg-gray-800 p-3 flex items-center justify-between">
+         <span className="text-xs font-mono text-gray-500">Slide {current + 1} / {slides.length}</span>
+         <div className="flex gap-2">
+           <button 
+             disabled={current === 0}
+             onClick={() => setCurrent(c => c - 1)}
+             className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50 text-xs font-bold"
+           >
+             Prev
+           </button>
+           <button 
+             disabled={current === slides.length - 1}
+             onClick={() => setCurrent(c => c + 1)}
+             className="px-3 py-1 bg-brand-600 rounded hover:bg-brand-500 disabled:opacity-50 text-xs font-bold"
+           >
+             Next
+           </button>
+         </div>
+      </div>
+      
+      {slides[current].note && (
+         <div className="bg-gray-900/90 p-2 text-xs text-gray-400 text-center border-t border-gray-800">
+            Speaker Note: {slides[current].note}
+         </div>
+      )}
+    </div>
   );
 };
+
+const YouTubeCard: React.FC<{ video: YouTubeVideo }> = ({ video }) => (
+  <a 
+    href={`https://www.youtube.com/watch?v=${video.id}`} 
+    target="_blank" 
+    rel="noopener noreferrer"
+    className="flex gap-3 p-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-500 transition-all group"
+  >
+    <div className="w-32 h-20 flex-shrink-0 rounded-lg overflow-hidden relative">
+      <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
+      <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-all" />
+      <div className="absolute bottom-1 right-1 bg-black/80 text-white text-[9px] px-1 rounded">Video</div>
+    </div>
+    <div className="flex-1 min-w-0 py-1">
+      <h4 className="font-bold text-sm line-clamp-2 text-gray-800 dark:text-gray-200 group-hover:text-brand-600">{video.title}</h4>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{video.channelTitle}</p>
+    </div>
+  </a>
+);
 
 export const MessageList: React.FC<MessageListProps> = ({ 
   messages, onSuggestionClick, onPinMessage, codeWrapping = false, selectedVoice 
@@ -128,10 +130,6 @@ export const MessageList: React.FC<MessageListProps> = ({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages[messages.length - 1]?.content, messages.length]);
-
-  const formatTime = (ts: number) => {
-    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
 
   const parseContent = (content: string) => {
     const thinkMatch = content.match(/<think>([\s\S]*?)(?:<\/think>|$)/);
@@ -144,48 +142,67 @@ export const MessageList: React.FC<MessageListProps> = ({
   };
 
   return (
-    <div className="space-y-6 px-4">
+    <div className="space-y-6 px-4 md:px-6">
       {messages.map((msg, idx) => {
         const { thought, main } = msg.role === 'assistant' ? parseContent(msg.content) : { thought: null, main: msg.content };
 
         return (
           <div 
             key={idx} 
-            className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex gap-3 md:gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {msg.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center flex-shrink-0 text-brand-600 dark:text-brand-400 mt-1">
+              <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center flex-shrink-0 text-brand-600 dark:text-brand-400 mt-1 shadow-sm">
                 <Bot size={18} />
               </div>
             )}
 
-            <div className={`relative group max-w-[90%] md:max-w-[85%] rounded-2xl p-4 shadow-sm transition-all ${
+            <div className={`relative group max-w-[95%] md:max-w-[85%] rounded-2xl p-4 shadow-sm transition-all ${
               msg.role === 'user' 
                 ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100' 
                 : 'bg-white dark:bg-gray-900/50 border text-gray-800 dark:text-gray-200'
             } ${msg.isPinned ? 'border-brand-500 ring-1 ring-brand-500/20' : 'border-gray-100 dark:border-gray-800'}`}>
               
-              {msg.isPinned && (
-                <div className="absolute -top-2 -right-2 bg-brand-500 text-white rounded-full p-1 shadow-sm">
-                  <Pin size={10} fill="currentColor" />
+              {/* Audio Player */}
+              {msg.audioData && (
+                <div className="mb-4 bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Volume2 className="text-brand-500" size={20} />
+                    <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Audio Response</span>
+                  </div>
+                  <audio controls src={`data:audio/mp3;base64,${msg.audioData}`} className="w-full h-8" />
                 </div>
               )}
 
-              {msg.role === 'assistant' && (
-                 <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/50 dark:bg-black/50 backdrop-blur-sm rounded-lg p-0.5">
-                   {onPinMessage && (
-                     <button onClick={() => onPinMessage(idx)} className="p-1 text-gray-400 hover:text-brand-500" title="Pin Message">
-                       <Pin size={14} className={msg.isPinned ? "fill-current text-brand-500" : ""} />
-                     </button>
-                   )}
-                   <TTSButton text={main} voiceURI={selectedVoice} />
-                   <CopyButton text={main} />
+              {/* YouTube Results */}
+              {msg.youtubeData && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                  {msg.youtubeData.map(v => <YouTubeCard key={v.id} video={v} />)}
+                </div>
+              )}
+
+              {/* Slides */}
+              {msg.slidesData && <SlideDeck slides={msg.slidesData} />}
+
+              {thought && (
+                 <div className="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden">
+                   <details className="group/details">
+                     <summary className="flex items-center gap-2 p-3 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors cursor-pointer select-none">
+                       <Brain size={14} className="text-amber-500" />
+                       <span>Reasoning Process</span>
+                       <div className="flex-1" />
+                       <ChevronDown size={14} className="group-open/details:rotate-180 transition-transform" />
+                     </summary>
+                     <div className="p-3 pt-0 border-t border-gray-200 dark:border-gray-700/50">
+                       <div className="prose prose-xs dark:prose-invert max-w-none text-gray-500 dark:text-gray-400 font-mono text-[10px] leading-relaxed whitespace-pre-wrap">
+                         {thought}
+                       </div>
+                     </div>
+                   </details>
                  </div>
               )}
-              
-              {thought && <ReasoningBlock content={thought} />}
 
-              <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words overflow-hidden">
+              <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none break-words">
                 {msg.role === 'user' ? (
                   <p className="whitespace-pre-wrap">{main}</p>
                 ) : (
@@ -193,11 +210,11 @@ export const MessageList: React.FC<MessageListProps> = ({
                     remarkPlugins={[remarkMath]}
                     rehypePlugins={[rehypeKatex]}
                     components={{
-                      a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline" />,
+                      a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline break-all" />,
                       img: ({ node, ...props }) => {
                         if (props.alt === 'Generated Video') {
                           return (
-                            <div className="my-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-black">
+                            <div className="my-2 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-black relative group">
                               <video src={props.src} controls className="w-full max-h-[400px]" />
                             </div>
                           );
@@ -206,20 +223,22 @@ export const MessageList: React.FC<MessageListProps> = ({
                       },
                       code: ({ node, inline, className, children, ...props }: any) => {
                         const match = /language-(\w+)/.exec(className || '');
+                        const language = match?.[1] || '';
                         const codeString = String(children).replace(/\n$/, '');
 
                         return !inline ? (
-                          <div className="relative group my-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                          <div className="relative group my-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
                              <div className="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                               <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{match?.[1] || 'code'}</span>
-                               <CodeCopyButton text={codeString} />
+                               <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{language || 'code'}</span>
+                               <button onClick={() => navigator.clipboard.writeText(codeString)} className="text-gray-400 hover:text-gray-600"><Clipboard size={14}/></button>
                              </div>
                             <div className="bg-gray-50 dark:bg-gray-900/50 p-4 overflow-x-auto text-xs md:text-sm">
                               <code {...props} className={`${className} ${codeWrapping ? 'whitespace-pre-wrap break-all' : ''}`}>{children}</code>
                             </div>
+                            <CodeRunner code={codeString} language={language} />
                           </div>
                         ) : (
-                           <code {...props} className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm font-mono">{children}</code>
+                           <code {...props} className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm font-mono text-pink-600 dark:text-pink-400">{children}</code>
                         )
                       }
                     }}
@@ -287,7 +306,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             </div>
 
             {msg.role === 'user' && (
-               <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 text-gray-500 dark:text-gray-400 mt-1">
+               <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 text-gray-500 dark:text-gray-400 mt-1 shadow-sm">
                  <User size={18} />
                </div>
             )}
@@ -307,7 +326,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                <button
                  key={i}
                  onClick={() => onSuggestionClick(suggestion)}
-                 className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-500 dark:hover:border-brand-500 rounded-xl text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition-all shadow-sm active:scale-95"
+                 className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-brand-500 dark:hover:border-brand-500 rounded-xl text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 transition-all shadow-sm active:scale-95 text-left"
                >
                  {suggestion}
                </button>
@@ -320,3 +339,4 @@ export const MessageList: React.FC<MessageListProps> = ({
     </div>
   );
 };
+    

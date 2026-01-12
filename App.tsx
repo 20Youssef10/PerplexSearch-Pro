@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -7,7 +6,7 @@ import { MessageList } from './components/MessageList';
 import { SearchInput } from './components/SearchInput';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Canvas } from './components/Canvas';
-import { Message, Conversation, Folder, SearchMode, AppSettings, Usage, Workspace, Gem, CanvasDocument, AppLanguage, Attachment } from './types';
+import { Message, Conversation, Folder, SearchMode, AppSettings, Usage, Workspace, Gem, CanvasDocument, Attachment } from './types';
 import { streamCompletion } from './services/perplexityService';
 import { streamGeminiCompletion } from './services/geminiService';
 import { streamOpenAICompletion } from './services/openaiService';
@@ -15,7 +14,7 @@ import { streamAnthropicCompletion } from './services/anthropicService';
 import { streamOllamaCompletion } from './services/ollamaService';
 import { searchYouTube } from './services/youtubeService';
 import { readFiles } from './services/documentService';
-import { DEFAULT_MODEL, NEW_CONVERSATION_ID, MODE_PROMPTS, FOLLOW_UP_INSTRUCTION, AVAILABLE_MODELS, DEFAULT_WORKSPACES, DEFAULT_GEMS } from './constants';
+import { DEFAULT_MODEL, NEW_CONVERSATION_ID, MODE_PROMPTS, FOLLOW_UP_INSTRUCTION, AVAILABLE_MODELS, DEFAULT_WORKSPACES, DEFAULT_GEMS, TRANSLATIONS } from './constants';
 import { subscribeToAuth, getUserData, saveUserData, rtdb } from './services/firebase';
 import { User } from 'firebase/auth';
 import { ref, onValue } from 'firebase/database';
@@ -46,7 +45,8 @@ const App: React.FC = () => {
       memories: [],
       profile: { displayName: '', jobTitle: '', bio: '', avatarUrl: '' },
       modelPreferences: { temperature: 0.7, topP: 0.9, customInstructions: {} },
-      interface: { fontSize: 'medium', compactMode: false, soundEnabled: true, codeWrapping: false, selectedVoice: '', language: 'en' }
+      interface: { fontSize: 'medium', compactMode: false, soundEnabled: true, codeWrapping: false, selectedVoice: '', language: 'en' },
+      customTranslations: {}
     };
     return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
   });
@@ -84,6 +84,12 @@ const App: React.FC = () => {
   };
 
   const messages = currentConversation.messages;
+
+  // Active Translations Logic
+  const allTranslations = { ...TRANSLATIONS, ...(settings.customTranslations || {}) };
+  const currentLang = settings.interface.language || 'en';
+  // Fallback to English if the specific language key doesn't exist (e.g. if custom trans failed)
+  const activeTranslations = allTranslations[currentLang] || TRANSLATIONS['en'];
 
   useEffect(() => {
     const handleResize = () => { if (window.innerWidth >= 768) setIsSidebarOpen(true); else setIsSidebarOpen(false); };
@@ -439,6 +445,7 @@ const App: React.FC = () => {
           onOpenCanvas={() => { setCurrentView('canvas'); if(window.innerWidth < 768) setIsSidebarOpen(false); }}
           isAdmin={isAdmin}
           onGoAdmin={() => setCurrentView('admin')}
+          translations={activeTranslations}
         />
       </div>
 
@@ -477,6 +484,7 @@ const App: React.FC = () => {
                   <SearchInput 
                     input={input} setInput={setInput} onSubmit={handleSubmit} onStop={handleStopGeneration}
                     isLoading={isLoading} searchMode={searchMode} setSearchMode={setSearchMode}
+                    translations={activeTranslations}
                   />
                 </div>
               </div>

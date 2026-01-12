@@ -1,5 +1,4 @@
 
-
 export interface Usage {
   prompt_tokens: number;
   completion_tokens: number;
@@ -108,7 +107,8 @@ export interface Conversation {
 
 export type SearchMode = 'concise' | 'copilot' | 'academic' | 'writing' | 'deep-research' | 'youtube' | 'presentation' | 'analyst' | 'arena' | 'quiz' | 'flashcards';
 
-export type AppLanguage = 'en' | 'es' | 'fr' | 'de' | 'ja' | 'zh';
+// Allow string to support dynamic languages added via AI
+export type AppLanguage = 'en' | 'es' | 'fr' | 'de' | 'ja' | 'zh' | 'ar' | string;
 
 export interface UserProfile {
   displayName: string;
@@ -139,13 +139,15 @@ export interface AppSettings {
   googleApiKey?: string;
   openaiApiKey?: string;
   anthropicApiKey?: string;
-  ollamaBaseUrl?: string; // New: Local LLM
+  ollamaBaseUrl?: string;
   systemInstruction: string;
   projectContext: string;
   memories: string[];
   profile: UserProfile;
   modelPreferences: ModelPreferences;
   interface: InterfaceSettings;
+  // Store dynamically generated translations: { 'it': { 'newResearch': '...', ... } }
+  customTranslations: Record<string, Record<string, string>>; 
 }
 
 export interface ModelConfig {

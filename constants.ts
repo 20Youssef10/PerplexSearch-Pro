@@ -9,7 +9,6 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
   // Perplexity
   { id: 'sonar', name: 'Sonar', description: 'Perplexity: Fast online search', provider: 'perplexity' },
   { id: 'sonar-pro', name: 'Sonar Pro', description: 'Perplexity: Deep research & reasoning', provider: 'perplexity' },
-  { id: 'sonar-reasoning', name: 'Sonar Reasoning', description: 'Perplexity: Chain of thought', provider: 'perplexity' },
   // Google
   { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Google: Next-gen fast model', provider: 'google' },
   { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', description: 'Google: Next-gen reasoning', provider: 'google' },
@@ -82,57 +81,129 @@ export const API_ENDPOINT = 'https://api.perplexity.ai/chat/completions';
 export const TRANSLATIONS: Record<AppLanguage, Record<string, string>> = {
   en: {
     newResearch: "New Research",
+    openCanvas: "Open Canvas",
     chats: "Chats",
     gems: "Gems",
+    folders: "Folders",
+    recent: "Recent",
+    tools: "Tools",
+    quizMaker: "Quiz Maker",
+    knowledgeGraph: "Knowledge Graph",
+    createWorkspace: "Create Workspace",
     searchPlaceholder: "Ask anything...",
     listening: "Listening...",
     controlCenter: "Control Center",
-    memory: "Memory"
+    memory: "Memory",
+    promptTemplates: "Prompt Templates",
+    researchTools: "Research Tools & Modes"
   },
   es: {
     newResearch: "Nueva Búsqueda",
+    openCanvas: "Abrir Lienzo",
     chats: "Chats",
     gems: "Gemas",
+    folders: "Carpetas",
+    recent: "Recientes",
+    tools: "Herramientas",
+    quizMaker: "Creador de Cuestionarios",
+    knowledgeGraph: "Gráfico de Conocimiento",
+    createWorkspace: "Crear Espacio de Trabajo",
     searchPlaceholder: "Pregunta lo que sea...",
     listening: "Escuchando...",
     controlCenter: "Centro de Control",
-    memory: "Memoria"
+    memory: "Memoria",
+    promptTemplates: "Plantillas de Preguntas",
+    researchTools: "Herramientas de Investigación"
   },
   fr: {
     newResearch: "Nouvelle Recherche",
+    openCanvas: "Ouvrir Canvas",
     chats: "Discussions",
     gems: "Joyaux",
+    folders: "Dossiers",
+    recent: "Récents",
+    tools: "Outils",
+    quizMaker: "Créateur de Quiz",
+    knowledgeGraph: "Graphe de Connaissances",
+    createWorkspace: "Créer un Espace",
     searchPlaceholder: "Demandez n'importe quoi...",
     listening: "Écoute...",
     controlCenter: "Centre de Contrôle",
-    memory: "Mémoire"
+    memory: "Mémoire",
+    promptTemplates: "Modèles de Prompts",
+    researchTools: "Outils de Recherche"
   },
   de: {
     newResearch: "Neue Forschung",
+    openCanvas: "Canvas Öffnen",
     chats: "Chats",
     gems: "Juwelen",
+    folders: "Ordner",
+    recent: "Kürzlich",
+    tools: "Werkzeuge",
+    quizMaker: "Quiz-Ersteller",
+    knowledgeGraph: "Wissensgraph",
+    createWorkspace: "Arbeitsbereich Erstellen",
     searchPlaceholder: "Frag alles...",
     listening: "Zuhören...",
     controlCenter: "Kontrollzentrum",
-    memory: "Gedächtnis"
+    memory: "Gedächtnis",
+    promptTemplates: "Prompt-Vorlagen",
+    researchTools: "Forschungstools"
   },
   ja: {
     newResearch: "新規検索",
+    openCanvas: "キャンバスを開く",
     chats: "チャット",
     gems: "ジェム",
+    folders: "フォルダ",
+    recent: "最近",
+    tools: "ツール",
+    quizMaker: "クイズ作成",
+    knowledgeGraph: "ナレッジグラフ",
+    createWorkspace: "ワークスペース作成",
     searchPlaceholder: "何でも聞いてください...",
     listening: "聞いています...",
     controlCenter: "コントロールセンター",
-    memory: "メモリ"
+    memory: "メモリ",
+    promptTemplates: "プロンプトテンプレート",
+    researchTools: "リサーチツール"
   },
   zh: {
     newResearch: "新搜索",
+    openCanvas: "打开画布",
     chats: "聊天",
     gems: "宝石",
+    folders: "文件夹",
+    recent: "最近",
+    tools: "工具",
+    quizMaker: "测验制作器",
+    knowledgeGraph: "知识图谱",
+    createWorkspace: "创建工作区",
     searchPlaceholder: "随便问...",
     listening: "正在听...",
     controlCenter: "控制中心",
-    memory: "记忆"
+    memory: "记忆",
+    promptTemplates: "提示模板",
+    researchTools: "研究工具"
+  },
+  ar: {
+    newResearch: "بحث جديد",
+    openCanvas: "فتح اللوحة",
+    chats: "المحادثات",
+    gems: "الجواهر",
+    folders: "المجلدات",
+    recent: "الأخيرة",
+    tools: "الأدوات",
+    quizMaker: "صانع الاختبارات",
+    knowledgeGraph: "الرسم البياني للمعرفة",
+    createWorkspace: "إنشاء مساحة عمل",
+    searchPlaceholder: "اسأل أي شيء...",
+    listening: "جاري الاستماع...",
+    controlCenter: "مركز التحكم",
+    memory: "الذاكرة",
+    promptTemplates: "قوالب التلقين",
+    researchTools: "أدوات البحث والأنماط"
   }
 };
 

@@ -6,18 +6,18 @@ import {
   Image as ImageIcon, Youtube, MonitorPlay, BarChart3, Swords, Plus,
   GraduationCap, Layers
 } from 'lucide-react';
-import { SearchMode } from '../types';
+import { SearchMode, AppLanguage } from '../types';
 import { PROMPT_TEMPLATES } from '../constants';
-import { readFiles } from '../services/documentService';
 
 interface SearchInputProps {
   input: string;
   setInput: (val: string) => void;
-  onSubmit: (e?: React.FormEvent, attachments?: File[]) => void;
+  onSubmit: (e?: React.FormEvent, overrideInput?: string, attachments?: File[]) => void;
   onStop: () => void;
   isLoading: boolean;
   searchMode: SearchMode;
   setSearchMode: (mode: SearchMode) => void;
+  translations: Record<string, string>;
 }
 
 export const SearchInput: React.FC<SearchInputProps> = ({ 
@@ -27,7 +27,8 @@ export const SearchInput: React.FC<SearchInputProps> = ({
   onStop,
   isLoading, 
   searchMode, 
-  setSearchMode 
+  setSearchMode,
+  translations
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +36,8 @@ export const SearchInput: React.FC<SearchInputProps> = ({
   const [showTemplates, setShowTemplates] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+
+  const t = translations;
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -58,7 +61,10 @@ export const SearchInput: React.FC<SearchInputProps> = ({
         setSearchMode('analyst');
     }
 
-    onSubmit(undefined, attachedFiles);
+    // Pass undefined for overrideInput so App uses the input state
+    // Critical fix: Ensure 3rd argument is used for attachments
+    onSubmit(undefined, undefined, attachedFiles);
+    
     setAttachedFiles([]);
     setShowTools(false);
   };
@@ -110,7 +116,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
            <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
              <div className="flex items-center gap-2">
                 <Sparkles size={16} className="text-amber-500" />
-                <span className="text-xs font-black text-gray-700 dark:text-gray-200 uppercase tracking-wider">Prompt Templates</span>
+                <span className="text-xs font-black text-gray-700 dark:text-gray-200 uppercase tracking-wider">{t.promptTemplates}</span>
              </div>
              <button onClick={() => setShowTemplates(false)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full">
                <X size={16} />
@@ -144,7 +150,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
            <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
              <div className="flex items-center gap-2">
                 <Plus size={16} className="text-brand-500" />
-                <span className="text-xs font-black text-gray-700 dark:text-gray-200 uppercase tracking-wider">Research Tools & Modes</span>
+                <span className="text-xs font-black text-gray-700 dark:text-gray-200 uppercase tracking-wider">{t.researchTools}</span>
              </div>
              <button onClick={() => setShowTools(false)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full">
                <X size={16} />
@@ -200,7 +206,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={isListening ? "Listening..." : "Deep research, data analysis, or documents..."}
+          placeholder={isListening ? t.listening : t.searchPlaceholder}
           rows={1}
           className="w-full p-5 pr-20 md:pr-40 pb-16 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-none outline-none max-h-[150px] overflow-y-auto font-medium"
         />

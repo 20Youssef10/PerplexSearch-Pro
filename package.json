@@ -1,10 +1,11 @@
+
 {
   "name": "perplex-search-pro",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node scripts/generate-seo.js",
     "preview": "vite preview"
   },
   "dependencies": {

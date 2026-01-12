@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Conversation, Folder, Workspace, Gem } from '../types';
+import { Conversation, Folder, Workspace, Gem, AppLanguage } from '../types';
 import { 
   MessageSquare, Trash2, PlusCircle, Search, 
   Folder as FolderIcon, FolderPlus, ChevronRight, ChevronDown, 
@@ -26,12 +26,13 @@ interface SidebarProps {
   onOpenCanvas: () => void;
   isAdmin?: boolean;
   onGoAdmin?: () => void;
+  translations: Record<string, string>;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   conversations, folders, currentId, workspaces, currentWorkspaceId, gems,
   onSelectWorkspace, onSelectGem, onSelect, onDelete, onNew,
-  onCreateFolder, onDeleteFolder, onOpenCanvas, isAdmin, onGoAdmin
+  onCreateFolder, onDeleteFolder, onOpenCanvas, isAdmin, onGoAdmin, translations
 }) => {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -40,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const t = translations;
   const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId) || workspaces[0];
   const filteredConversations = conversations.filter(c => c.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -78,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             ))}
             <div className="border-t border-gray-100 dark:border-gray-800 p-2">
-               <button className="w-full flex items-center gap-2 p-2 text-xs font-bold text-gray-500 hover:text-brand-600 transition-colors"><PlusCircle size={14} /> Create Workspace</button>
+               <button className="w-full flex items-center gap-2 p-2 text-xs font-bold text-gray-500 hover:text-brand-600 transition-colors"><PlusCircle size={14} /> {t.createWorkspace}</button>
             </div>
           </div>
         )}
@@ -87,21 +89,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-4 space-y-3 pb-0">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-gray-400" size={14} />
-          <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full pl-9 pr-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs font-medium outline-none focus:ring-2 focus:ring-brand-500/50" />
+          <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={`${(t.searchPlaceholder || 'Search').split(' ')[0]}...`} className="w-full pl-9 pr-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs font-medium outline-none focus:ring-2 focus:ring-brand-500/50" />
         </div>
 
         <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-          <button onClick={() => setActiveTab('chats')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === 'chats' ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-500'}`}>Chats</button>
-          <button onClick={() => setActiveTab('gems')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === 'gems' ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-500'}`}>Gems</button>
+          <button onClick={() => setActiveTab('chats')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === 'chats' ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-500'}`}>{t.chats}</button>
+          <button onClick={() => setActiveTab('gems')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === 'gems' ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-500'}`}>{t.gems}</button>
         </div>
 
         {activeTab === 'chats' && (
           <>
             <button onClick={onNew} className="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white py-2.5 px-4 rounded-xl transition-all shadow-lg shadow-brand-500/20 font-bold text-sm active:scale-[0.98]">
-              <PlusCircle size={16} /><span>New Research</span>
+              <PlusCircle size={16} /><span>{t.newResearch}</span>
             </button>
             <button onClick={onOpenCanvas} className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2.5 px-4 rounded-xl transition-all shadow-lg shadow-purple-500/20 font-bold text-sm active:scale-[0.98]">
-              <Layout size={16} /><span>Open Canvas</span>
+              <Layout size={16} /><span>{t.openCanvas}</span>
             </button>
           </>
         )}
@@ -111,7 +113,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {activeTab === 'chats' && (
           <>
             <div className="flex items-center justify-between px-3 py-2 text-xs font-bold text-gray-400 uppercase tracking-widest">
-              <span>Folders</span><button onClick={() => setIsCreatingFolder(true)} className="hover:text-brand-500"><FolderPlus size={14} /></button>
+              <span>{t.folders}</span><button onClick={() => setIsCreatingFolder(true)} className="hover:text-brand-500"><FolderPlus size={14} /></button>
             </div>
             
             {isCreatingFolder && (
@@ -148,7 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             })}
 
             <div className="flex items-center gap-2 px-3 py-2 mt-4 text-xs font-bold text-gray-400 uppercase tracking-widest">
-              <span>{searchQuery ? 'Search Results' : 'Recent'}</span>
+              <span>{searchQuery ? 'Search Results' : t.recent}</span>
             </div>
             {filteredConversations.filter(c => !c.folderId).map(c => (
                <div key={c.id} onClick={() => onSelect(c.id)} className={`group flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${currentId === c.id ? 'bg-brand-50 dark:bg-brand-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
@@ -172,9 +174,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             ))}
              <div className="pt-4 border-t border-gray-100 dark:border-gray-800 mt-4">
-              <p className="px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Tools</p>
-              <button className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><GraduationCap size={16} className="text-blue-500" /> Quiz Maker</button>
-              <button className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><Network size={16} className="text-pink-500" /> Knowledge Graph</button>
+              <p className="px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">{t.tools}</p>
+              <button className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><GraduationCap size={16} className="text-blue-500" /> {t.quizMaker}</button>
+              <button className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><Network size={16} className="text-pink-500" /> {t.knowledgeGraph}</button>
             </div>
           </div>
         )}

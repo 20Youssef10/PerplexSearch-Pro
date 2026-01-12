@@ -7,6 +7,7 @@ export const generateTranslation = async (
   apiKey: string
 ): Promise<Record<string, string>> => {
   const ai = new GoogleGenAI({ apiKey });
+  // Fallback to English if strict key check fails, though 'en' is guaranteed to exist
   const baseDictionary = TRANSLATIONS['en'];
 
   const prompt = `
@@ -28,7 +29,7 @@ export const generateTranslation = async (
       }
     });
 
-    const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = response.text;
     if (!text) throw new Error("No response from AI");
 
     const json = JSON.parse(text);

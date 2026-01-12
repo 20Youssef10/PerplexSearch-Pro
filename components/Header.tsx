@@ -83,7 +83,8 @@ export const Header: React.FC<HeaderProps> = ({
 
     setIsTranslating(true);
     try {
-      const translation = await generateTranslation(newLangName, settings.googleApiKey);
+      // Cast to string since we checked for existence above
+      const translation = await generateTranslation(newLangName, settings.googleApiKey as string);
       const langCode = newLangName; // Use input name as code for simplicity
 
       setSettings(prev => ({

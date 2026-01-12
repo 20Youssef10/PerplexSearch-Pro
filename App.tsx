@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { MessageList } from './components/MessageList';
@@ -500,6 +501,7 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
+      <Analytics />
     </div>
   );
 };

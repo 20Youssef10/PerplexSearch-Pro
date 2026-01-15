@@ -234,6 +234,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
+      {isAdmin && (
+        <div className="p-3 border-t border-gray-100 dark:border-gray-800">
+           <button onClick={onGoAdmin} className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-gray-900 text-white dark:bg-white dark:text-gray-900 font-bold text-sm hover:opacity-90 transition-opacity shadow-lg shadow-gray-500/10">
+              <ShieldCheck size={16} />
+              <span>Admin Dashboard</span>
+           </button>
+        </div>
+      )}
+
       {/* Create Gem Modal Overlay */}
       {showCreateGem && (
         <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">

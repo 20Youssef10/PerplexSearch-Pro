@@ -88,7 +88,8 @@ export const LiveSession: React.FC<LiveSessionProps> = ({ apiKey, voiceName = 'Z
               processor.connect(inputCtx.destination);
             },
             onmessage: async (msg: LiveServerMessage) => {
-               const base64Audio = msg.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
+               // Fix: Added optional chaining (parts?.[0]) to handle undefined parts array
+               const base64Audio = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
                if (base64Audio) {
                  const currentCtx = ctx; // Closure capture
                  const decoded = base64ToUint8Array(base64Audio);

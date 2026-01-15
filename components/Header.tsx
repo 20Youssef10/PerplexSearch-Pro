@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Settings, Moon, Sun, Menu, X, Trash2, LogIn, User as UserIcon, Download, EyeOff, Sliders, Palette, FileCode, Volume2, Save, Brain, Globe, Plus, Server, Smartphone, Monitor, Loader2, Sparkles } from 'lucide-react';
+import { Settings, Moon, Sun, Menu, X, Trash2, LogIn, User as UserIcon, Download, EyeOff, Sliders, Palette, FileCode, Volume2, Save, Brain, Globe, Plus, Server, Smartphone, Monitor, Loader2, Sparkles, Radio, FileText } from 'lucide-react';
 import { AppSettings, AppLanguage } from '../types';
 import { TRANSLATIONS, AVAILABLE_MODELS } from '../constants';
 import { signInWithGoogle, signInWithGithub, signInWithMicrosoft, signInEmail, signUpEmail, signInGuest } from '../services/firebase';
@@ -17,11 +17,13 @@ interface HeaderProps {
   isTemporary: boolean;
   onToggleTemporary: () => void;
   onExport: (format: 'txt' | 'json' | 'md') => void;
+  onStartLive: () => void;
+  onOpenKnowledgeBase: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
   toggleSidebar, settings, setSettings, onClearHistory, user,
-  isTemporary, onToggleTemporary, onExport
+  isTemporary, onToggleTemporary, onExport, onStartLive, onOpenKnowledgeBase
 }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -120,6 +122,19 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="flex items-center gap-1">
+          {settings.googleApiKey && (
+             <button 
+                onClick={onStartLive}
+                className="hidden md:flex items-center gap-2 px-3 py-1.5 mr-2 bg-red-500 text-white rounded-full text-xs font-bold hover:bg-red-600 transition-all animate-in fade-in zoom-in-95"
+             >
+                <Radio size={14} className="animate-pulse" /> Live
+             </button>
+          )}
+
+          <button onClick={onOpenKnowledgeBase} className="p-2 text-gray-400 hover:text-brand-600 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors mr-1" title="Project Knowledge Base">
+            <FileText size={18} />
+          </button>
+
           <button onClick={onToggleTemporary} className={`p-2 rounded-lg transition-all mr-1 ${isTemporary ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-md' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
             <EyeOff size={18} />
           </button>

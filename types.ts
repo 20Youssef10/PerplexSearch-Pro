@@ -63,6 +63,14 @@ export interface FlashcardDeck {
   cards: Flashcard[];
 }
 
+export interface Artifact {
+  id: string;
+  type: 'code' | 'chart' | 'mermaid' | 'html';
+  title: string;
+  content: string | any;
+  language?: string;
+}
+
 export interface Message {
   role: 'user' | 'assistant' | 'system' | 'arena'; 
   content: string;
@@ -82,8 +90,8 @@ export interface Message {
   youtubeData?: YouTubeVideo[];
   chartData?: ChartData; 
   arenaComparison?: ArenaComparison;
-  quizData?: QuizData; // New
-  flashcardsData?: FlashcardDeck; // New
+  quizData?: QuizData; 
+  flashcardsData?: FlashcardDeck; 
 }
 
 export interface Folder {
@@ -132,6 +140,15 @@ export interface InterfaceSettings {
   language: AppLanguage;
 }
 
+export interface Gem {
+  id: string;
+  name: string;
+  description: string;
+  systemPrompt: string;
+  icon: string;
+  model?: string;
+}
+
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   model: string;
@@ -146,8 +163,25 @@ export interface AppSettings {
   profile: UserProfile;
   modelPreferences: ModelPreferences;
   interface: InterfaceSettings;
-  // Store dynamically generated translations: { 'it': { 'newResearch': '...', ... } }
   customTranslations: Record<string, Record<string, string>>; 
+  customGems: Gem[];
+}
+
+export interface SystemConfig {
+  maintenanceMode: boolean;
+  allowGuestAccess: boolean;
+  features: {
+    imageGeneration: boolean;
+    videoGeneration: boolean;
+    audioGeneration: boolean;
+    webSearch: boolean;
+    fileUploads: boolean;
+  };
+  moderation: {
+    bannedKeywords: string[]; // Comma separated list stored as array
+    maxDailyRequests: number;
+    sensitiveContentFilter: boolean;
+  };
 }
 
 export interface ModelConfig {
@@ -180,15 +214,6 @@ export interface Workspace {
   icon: string;
   members: string[];
   createdAt: number;
-}
-
-export interface Gem {
-  id: string;
-  name: string;
-  description: string;
-  systemPrompt: string;
-  icon: string;
-  model?: string;
 }
 
 export interface CanvasSource {

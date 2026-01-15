@@ -4,7 +4,7 @@ import {
   ArrowUp, Globe, BookOpen, PenTool, Layout, Mic, 
   MicOff, Square, Sparkles, X, ChevronRight, Paperclip, FileText,
   Image as ImageIcon, Youtube, MonitorPlay, BarChart3, Swords, Plus,
-  GraduationCap, Layers
+  GraduationCap, Layers, Command
 } from 'lucide-react';
 import { SearchMode, AppLanguage } from '../types';
 import { PROMPT_TEMPLATES } from '../constants';
@@ -36,6 +36,10 @@ export const SearchInput: React.FC<SearchInputProps> = ({
   const [showTemplates, setShowTemplates] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  
+  // Slash Command State
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashQuery, setSlashQuery] = useState('');
 
   const t = translations;
 
@@ -44,25 +48,37 @@ export const SearchInput: React.FC<SearchInputProps> = ({
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 150) + 'px';
     }
+    
+    // Slash command detection
+    const lastWord = input.split(' ').pop();
+    if (lastWord && lastWord.startsWith('/')) {
+        setShowSlashMenu(true);
+        setSlashQuery(lastWord.substring(1).toLowerCase());
+    } else {
+        setShowSlashMenu(false);
+    }
   }, [input]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit();
+      if (showSlashMenu) {
+          // Select first match if enter is pressed while menu is open
+          const match = slashCommands.find(c => c.cmd.includes(slashQuery));
+          if (match) executeSlashCommand(match);
+      } else {
+          handleSubmit();
+      }
     }
   };
 
   const handleSubmit = () => {
     if (!input.trim() && attachedFiles.length === 0) return;
     
-    // Auto-switch to Analyst mode if CSV/JSON is uploaded
     if (attachedFiles.some(f => f.name.endsWith('.csv') || f.name.endsWith('.json'))) {
         setSearchMode('analyst');
     }
 
-    // Pass undefined for overrideInput so App uses the input state
-    // Critical fix: Ensure 3rd argument is used for attachments
     onSubmit(undefined, undefined, attachedFiles);
     
     setAttachedFiles([]);
@@ -106,10 +122,43 @@ export const SearchInput: React.FC<SearchInputProps> = ({
     { id: 'flashcards', icon: <Layers size={18} />, label: 'Flashcards', description: 'Create study flashcards' },
   ];
 
+  const slashCommands = [
+      ...modes.map(m => ({ cmd: m.id, desc: `Switch to ${m.label} mode`, action: () => setSearchMode(m.id) })),
+      { cmd: 'reset', desc: 'Clear input', action: () => setInput('') },
+      { cmd: 'image', desc: 'Generate an image', action: () => { setInput('Generate an image of '); setSearchMode('concise'); } } // Simple alias
+  ];
+
+  const executeSlashCommand = (cmd: any) => {
+      cmd.action();
+      // Remove the slash command from input
+      const words = input.split(' ');
+      words.pop();
+      setInput(words.join(' '));
+      setShowSlashMenu(false);
+  };
+
   const activeMode = modes.find(m => m.id === searchMode) || modes[0];
+  const filteredCommands = slashCommands.filter(c => c.cmd.includes(slashQuery));
 
   return (
     <div className="w-full relative">
+      {/* Slash Command Menu */}
+      {showSlashMenu && filteredCommands.length > 0 && (
+          <div className="absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-[60] animate-in zoom-in-95">
+              <div className="p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 text-[10px] font-bold uppercase text-gray-400">Commands</div>
+              {filteredCommands.map((cmd, i) => (
+                  <button 
+                     key={i} 
+                     onClick={() => executeSlashCommand(cmd)}
+                     className="w-full text-left px-4 py-2 hover:bg-brand-50 dark:hover:bg-brand-900/20 text-sm flex items-center justify-between group"
+                  >
+                      <span className="font-mono font-bold text-brand-600">/{cmd.cmd}</span>
+                      <span className="text-gray-400 text-xs group-hover:text-gray-600">{cmd.desc}</span>
+                  </button>
+              ))}
+          </div>
+      )}
+
       {/* Templates Popover */}
       {showTemplates && (
         <div className="absolute bottom-full left-0 mb-4 w-full md:w-96 bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 animate-in slide-in-from-bottom-5">

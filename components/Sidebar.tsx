@@ -5,7 +5,8 @@ import {
   MessageSquare, Trash2, PlusCircle, Search, 
   Folder as FolderIcon, FolderPlus, ChevronRight, ChevronDown, 
   Settings as SettingsIcon, ShieldCheck,
-  Briefcase, User as UserIcon, Layout, GraduationCap, Network
+  Briefcase, User as UserIcon, Layout, GraduationCap, Network,
+  Sparkles, X, Save, Zap
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -27,12 +28,13 @@ interface SidebarProps {
   isAdmin?: boolean;
   onGoAdmin?: () => void;
   translations: Record<string, string>;
+  onCreateGem: (gem: Gem) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   conversations, folders, currentId, workspaces, currentWorkspaceId, gems,
   onSelectWorkspace, onSelectGem, onSelect, onDelete, onNew,
-  onCreateFolder, onDeleteFolder, onOpenCanvas, isAdmin, onGoAdmin, translations
+  onCreateFolder, onDeleteFolder, onOpenCanvas, isAdmin, onGoAdmin, translations, onCreateGem
 }) => {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -40,6 +42,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [activeTab, setActiveTab] = useState<'chats' | 'gems'>('chats');
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Custom Gem State
+  const [showCreateGem, setShowCreateGem] = useState(false);
+  const [newGem, setNewGem] = useState<Partial<Gem>>({ name: '', description: '', systemPrompt: '', icon: '💎' });
 
   const t = translations;
   const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId) || workspaces[0];
@@ -54,6 +60,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
       setNewFolderName('');
       setIsCreatingFolder(false);
     }
+  };
+
+  const handleSubmitGem = () => {
+    if (newGem.name && newGem.systemPrompt) {
+      onCreateGem({
+        id: Date.now().toString(),
+        name: newGem.name,
+        description: newGem.description || 'Custom Gem',
+        systemPrompt: newGem.systemPrompt,
+        icon: newGem.icon || '💎'
+      });
+      setShowCreateGem(false);
+      setNewGem({ name: '', description: '', systemPrompt: '', icon: '💎' });
+    }
+  };
+
+  // Helper to calculate analytics
+  const getAnalytics = (c: Conversation) => {
+    const msgCount = c.messages.length;
+    const totalTokens = c.messages.reduce((acc, m) => acc + (m.usage?.total_tokens || 0), 0);
+    const tokenStr = totalTokens >= 1000 ? `${(totalTokens / 1000).toFixed(1)}k` : totalTokens.toString();
+    return { msgCount, totalTokens, tokenStr };
   };
 
   return (
@@ -137,12 +165,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                   {(isExpanded || searchQuery) && (
                     <div className="ml-5 pl-2 border-l border-gray-100 dark:border-gray-800 space-y-0.5 py-1">
-                      {folderConvos.map(c => (
-                        <div key={c.id} onClick={() => onSelect(c.id)} className={`group flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${currentId === c.id ? 'bg-brand-50 dark:bg-brand-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-                           <MessageSquare size={16} className={`mt-1 flex-shrink-0 ${currentId === c.id ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400'}`} />
-                           <div className="flex-1 min-w-0"><h3 className="text-sm font-bold truncate">{c.title}</h3></div>
-                        </div>
-                      ))}
+                      {folderConvos.map(c => {
+                        const stats = getAnalytics(c);
+                        return (
+                          <div 
+                            key={c.id} 
+                            onClick={() => onSelect(c.id)} 
+                            className={`group flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${currentId === c.id ? 'bg-brand-50 dark:bg-brand-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                            title={`${stats.msgCount} messages · ${stats.totalTokens} tokens`}
+                          >
+                             <MessageSquare size={16} className={`mt-1 flex-shrink-0 ${currentId === c.id ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400'}`} />
+                             <div className="flex-1 min-w-0"><h3 className="text-sm font-bold truncate">{c.title}</h3></div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -152,21 +188,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="flex items-center gap-2 px-3 py-2 mt-4 text-xs font-bold text-gray-400 uppercase tracking-widest">
               <span>{searchQuery ? 'Search Results' : t.recent}</span>
             </div>
-            {filteredConversations.filter(c => !c.folderId).map(c => (
-               <div key={c.id} onClick={() => onSelect(c.id)} className={`group flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${currentId === c.id ? 'bg-brand-50 dark:bg-brand-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-                   <MessageSquare size={16} className={`mt-1 flex-shrink-0 ${currentId === c.id ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400'}`} />
-                   <div className="flex-1 min-w-0">
-                     <h3 className="text-sm font-bold truncate">{c.title}</h3>
-                     <p className="text-[10px] text-gray-400 font-bold">{new Date(c.createdAt).toLocaleDateString()}</p>
-                   </div>
-                   <button onClick={(e) => { e.stopPropagation(); onDelete(c.id); }} className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"><Trash2 size={14} /></button>
-               </div>
-            ))}
+            {filteredConversations.filter(c => !c.folderId).map(c => {
+               const stats = getAnalytics(c);
+               return (
+                 <div key={c.id} onClick={() => onSelect(c.id)} className={`group flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${currentId === c.id ? 'bg-brand-50 dark:bg-brand-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                     <MessageSquare size={16} className={`mt-1 flex-shrink-0 ${currentId === c.id ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400'}`} />
+                     <div className="flex-1 min-w-0">
+                       <h3 className="text-sm font-bold truncate">{c.title}</h3>
+                       <div className="flex items-center justify-between mt-1.5">
+                         <p className="text-[10px] text-gray-400 font-bold">{new Date(c.createdAt).toLocaleDateString()}</p>
+                         <div className="flex items-center gap-2 text-[9px] text-gray-300 dark:text-gray-600 font-mono" title={`Total: ${stats.totalTokens} tokens`}>
+                           <span className="flex items-center gap-0.5"><MessageSquare size={8} /> {stats.msgCount}</span>
+                           <span className="flex items-center gap-0.5"><Zap size={8} /> {stats.tokenStr}</span>
+                         </div>
+                       </div>
+                     </div>
+                     <button onClick={(e) => { e.stopPropagation(); onDelete(c.id); }} className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"><Trash2 size={14} /></button>
+                 </div>
+               );
+            })}
           </>
         )}
 
         {activeTab === 'gems' && (
           <div className="space-y-2 p-1">
+            <button 
+              onClick={() => setShowCreateGem(true)}
+              className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-gray-500 hover:text-brand-600 hover:border-brand-500 transition-all text-xs font-bold mb-4"
+            >
+              <PlusCircle size={16} /> Create Custom Gem
+            </button>
+
             {gems.map(gem => (
               <button key={gem.id} onClick={() => onSelectGem(gem)} className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-left transition-all border border-transparent hover:border-gray-200 dark:hover:border-gray-700">
                 <div className="text-xl bg-white dark:bg-gray-700 w-10 h-10 flex items-center justify-center rounded-lg shadow-sm">{gem.icon}</div>
@@ -181,6 +233,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
       </div>
+
+      {/* Create Gem Modal Overlay */}
+      {showCreateGem && (
+        <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-200 dark:border-gray-700 flex flex-col max-h-[90%]">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50">
+                 <h3 className="font-bold text-sm">Create New Gem</h3>
+                 <button onClick={() => setShowCreateGem(false)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full"><X size={16} /></button>
+              </div>
+              <div className="p-4 space-y-4 overflow-y-auto">
+                 <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Name</label>
+                    <input value={newGem.name} onChange={e => setNewGem({...newGem, name: e.target.value})} className="w-full p-2 rounded-lg border dark:bg-gray-800 dark:border-gray-700 text-sm" placeholder="e.g. Math Tutor" />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Description</label>
+                    <input value={newGem.description} onChange={e => setNewGem({...newGem, description: e.target.value})} className="w-full p-2 rounded-lg border dark:bg-gray-800 dark:border-gray-700 text-sm" placeholder="Short tagline" />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Icon (Emoji)</label>
+                    <input value={newGem.icon} onChange={e => setNewGem({...newGem, icon: e.target.value})} className="w-16 p-2 rounded-lg border dark:bg-gray-800 dark:border-gray-700 text-center text-xl" placeholder="🤖" />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">System Instructions</label>
+                    <textarea value={newGem.systemPrompt} onChange={e => setNewGem({...newGem, systemPrompt: e.target.value})} className="w-full p-2 rounded-lg border dark:bg-gray-800 dark:border-gray-700 text-sm h-32" placeholder="You are a..." />
+                 </div>
+              </div>
+              <div className="p-4 border-t border-gray-100 dark:border-gray-800">
+                 <button onClick={handleSubmitGem} disabled={!newGem.name || !newGem.systemPrompt} className="w-full py-2 bg-brand-600 text-white rounded-xl font-bold text-sm hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Save Gem
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

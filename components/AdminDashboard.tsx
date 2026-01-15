@@ -4,17 +4,35 @@ import {
   Shield, Users, Activity, Key, Settings, AlertCircle, 
   CheckCircle, BarChart3, Globe, Database, Cpu, ArrowLeft,
   ToggleLeft, ToggleRight, RefreshCcw, Search, Trash2, Ban,
-  MessageSquare, Save, X
+  MessageSquare, Save, X, Lock, Eye, AlertTriangle, FileText
 } from 'lucide-react';
 import { rtdb } from '../services/firebase';
-import { ref, get, update, set, remove } from 'firebase/database';
+import { ref, get, update, set, remove, onValue } from 'firebase/database';
+import { SystemConfig } from '../types';
 
 interface AdminDashboardProps {
   onBack: () => void;
 }
 
+const DEFAULT_CONFIG: SystemConfig = {
+  maintenanceMode: false,
+  allowGuestAccess: true,
+  features: {
+    imageGeneration: true,
+    videoGeneration: true,
+    audioGeneration: true,
+    webSearch: true,
+    fileUploads: true
+  },
+  moderation: {
+    bannedKeywords: [],
+    maxDailyRequests: 100,
+    sensitiveContentFilter: true
+  }
+};
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'keys' | 'system'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'keys' | 'system' | 'moderation'>('overview');
   const [stats, setStats] = useState<{
     totalUsers: number;
     activeSessions: number;
@@ -46,9 +64,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastType, setBroadcastType] = useState<'info' | 'warning'>('info');
 
+  // System Config State
+  const [config, setConfig] = useState<SystemConfig>(DEFAULT_CONFIG);
+  const [bannedKeywordsInput, setBannedKeywordsInput] = useState('');
+
   useEffect(() => {
     fetchStats();
     if (activeTab === 'users') fetchUsers();
+    if (activeTab === 'moderation') fetchConfig();
   }, [activeTab]);
 
   const fetchStats = async () => {
@@ -74,6 +97,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         setUsers(userArray);
       }
     }
+  };
+
+  const fetchConfig = async () => {
+    if (rtdb) {
+        const configRef = ref(rtdb, 'system/config');
+        const snap = await get(configRef);
+        if (snap.exists()) {
+            const data = snap.val();
+            setConfig({ ...DEFAULT_CONFIG, ...data });
+            setBannedKeywordsInput((data.moderation?.bannedKeywords || []).join(', '));
+        }
+    }
+  };
+
+  const saveConfig = async () => {
+      if (!rtdb) return;
+      const keywords = bannedKeywordsInput.split(',').map(k => k.trim()).filter(k => k);
+      const newConfig = {
+          ...config,
+          moderation: {
+              ...config.moderation,
+              bannedKeywords: keywords
+          }
+      };
+      
+      try {
+          await set(ref(rtdb, 'system/config'), newConfig);
+          setConfig(newConfig);
+          alert("System configuration saved successfully.");
+      } catch (e) {
+          alert("Failed to save configuration.");
+      }
   };
 
   const handleUpdateKeys = async () => {
@@ -177,12 +232,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
               <p className="text-xs text-gray-500 font-medium uppercase tracking-widest mt-0.5">Control Center</p>
             </div>
           </div>
-          <div className="flex gap-2">
-             {['overview', 'users', 'keys', 'system'].map(tab => (
+          <div className="flex gap-2 overflow-x-auto">
+             {['overview', 'users', 'moderation', 'keys', 'system'].map(tab => (
                  <button
                     key={tab}
                     onClick={() => setActiveTab(tab as any)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap ${
                         activeTab === tab 
                         ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/20' 
                         : 'bg-white dark:bg-gray-800 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -279,6 +334,97 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                           </tbody>
                       </table>
                   </div>
+              </div>
+          )}
+
+          {/* MODERATION TAB */}
+          {activeTab === 'moderation' && (
+              <div className="space-y-4">
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                          <Lock size={18} className="text-brand-600" />
+                          <h3 className="font-bold text-sm">Access Control</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-xl cursor-pointer">
+                              <div>
+                                  <div className="font-bold text-sm">Maintenance Mode</div>
+                                  <div className="text-xs text-gray-500">Locks the app for all non-admin users.</div>
+                              </div>
+                              <div className={`w-11 h-6 rounded-full p-1 transition-colors ${config.maintenanceMode ? 'bg-red-500' : 'bg-gray-300 dark:bg-gray-700'}`} onClick={() => setConfig({...config, maintenanceMode: !config.maintenanceMode})}>
+                                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${config.maintenanceMode ? 'translate-x-5' : ''}`} />
+                              </div>
+                          </label>
+                          <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-xl cursor-pointer">
+                              <div>
+                                  <div className="font-bold text-sm">Allow Guest Access</div>
+                                  <div className="text-xs text-gray-500">Permit users to sign in anonymously.</div>
+                              </div>
+                              <div className={`w-11 h-6 rounded-full p-1 transition-colors ${config.allowGuestAccess ? 'bg-brand-600' : 'bg-gray-300 dark:bg-gray-700'}`} onClick={() => setConfig({...config, allowGuestAccess: !config.allowGuestAccess})}>
+                                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${config.allowGuestAccess ? 'translate-x-5' : ''}`} />
+                              </div>
+                          </label>
+                      </div>
+                  </div>
+
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                          <Eye size={18} className="text-brand-600" />
+                          <h3 className="font-bold text-sm">Feature Flags</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                         {[
+                             { key: 'imageGeneration', label: 'Image Generation' },
+                             { key: 'videoGeneration', label: 'Video Generation' },
+                             { key: 'audioGeneration', label: 'Audio Generation' },
+                             { key: 'webSearch', label: 'Web Search' },
+                             { key: 'fileUploads', label: 'File Uploads' }
+                         ].map(feat => (
+                             <label key={feat.key} className="flex items-center justify-between p-3 border border-gray-100 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/50">
+                                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{feat.label}</span>
+                                 <div 
+                                    className={`w-9 h-5 rounded-full p-0.5 transition-colors ${config.features[feat.key as keyof typeof config.features] ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-700'}`} 
+                                    onClick={() => setConfig({...config, features: {...config.features, [feat.key]: !config.features[feat.key as keyof typeof config.features]}})}
+                                 >
+                                    <div className={`w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${config.features[feat.key as keyof typeof config.features] ? 'translate-x-4' : ''}`} />
+                                 </div>
+                             </label>
+                         ))}
+                      </div>
+                  </div>
+
+                   <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                          <AlertTriangle size={18} className="text-brand-600" />
+                          <h3 className="font-bold text-sm">Safety & Filters</h3>
+                      </div>
+                      <div className="space-y-4">
+                          <div>
+                              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Banned Keywords (Comma Separated)</label>
+                              <textarea 
+                                value={bannedKeywordsInput}
+                                onChange={(e) => setBannedKeywordsInput(e.target.value)}
+                                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-sm h-24 focus:ring-2 focus:ring-brand-500 outline-none resize-none"
+                                placeholder="sex, violence, drugs..."
+                              />
+                          </div>
+                          <div>
+                             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Daily Request Limit (Per User)</label>
+                             <input 
+                                type="number"
+                                value={config.moderation.maxDailyRequests}
+                                onChange={(e) => setConfig({...config, moderation: {...config.moderation, maxDailyRequests: parseInt(e.target.value) || 0}})}
+                                className="w-full md:w-48 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-2 text-sm"
+                             />
+                          </div>
+                      </div>
+                   </div>
+                   
+                   <div className="flex justify-end pt-4">
+                        <button onClick={saveConfig} className="flex items-center gap-2 px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-lg shadow-brand-500/20 active:scale-95 transition-all">
+                            <Save size={18} /> Save Configuration
+                        </button>
+                   </div>
               </div>
           )}
 

@@ -1,6 +1,5 @@
 
-
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Modality } from "@google/genai";
 import { Message, Attachment, Usage } from '../types';
 
 export const generateAudioOverview = async (sourcesContent: string, apiKey: string): Promise<string | null> => {
@@ -22,7 +21,7 @@ export const generateAudioOverview = async (sourcesContent: string, apiKey: stri
       model: "gemini-2.5-flash-preview-tts",
       contents: { parts: [{ text: prompt }] },
       config: {
-        responseModalities: ['AUDIO'],
+        responseModalities: [Modality.AUDIO],
         speechConfig: {
             multiSpeakerVoiceConfig: {
               speakerVoiceConfigs: [
@@ -59,7 +58,7 @@ export const streamGeminiCompletion = async (
             model: model,
             contents: { parts: [{ text: lastMsg.content }] },
             config: {
-                responseModalities: ['AUDIO'],
+                responseModalities: [Modality.AUDIO],
                 speechConfig: {
                     voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
                 }
@@ -117,14 +116,22 @@ export const streamGeminiCompletion = async (
     return;
   }
 
-  // 2. IMAGE GENERATION/EDITING (Gemini 2.5 Flash Image)
+  // 2. IMAGE GENERATION/EDITING
   if (model === 'gemini-2.5-flash-image') {
     const contents = messages.map(m => {
-        if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
+        // Only include actual media attachments as inlineData
+        // Text attachments are already in m.content via App.tsx injection
+        const mediaAttachments = (m.attachments || []).filter(a => 
+            a.mimeType.startsWith('image/') || 
+            a.mimeType.startsWith('video/') ||
+            a.mimeType === 'application/pdf'
+        );
+
+        if (m.role === 'user' && mediaAttachments.length > 0) {
             return {
                 role: 'user',
                 parts: [
-                    ...m.attachments.map(att => ({
+                    ...mediaAttachments.map(att => ({
                         inlineData: { mimeType: att.mimeType, data: att.data }
                     })),
                     { text: m.content }
@@ -175,11 +182,20 @@ export const streamGeminiCompletion = async (
 
   // 3. STANDARD TEXT/MULTIMODAL STREAMING
   let contents = messages.map(m => {
-    if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
+    // Only map MEDIA attachments to inlineData. 
+    // Text attachments are assumed to be concatenated into m.content by the caller.
+    const mediaAttachments = (m.attachments || []).filter(a => 
+        a.mimeType.startsWith('image/') || 
+        a.mimeType.startsWith('audio/') || 
+        a.mimeType.startsWith('video/') ||
+        a.mimeType === 'application/pdf'
+    );
+
+    if (m.role === 'user' && mediaAttachments.length > 0) {
       return {
         role: 'user',
         parts: [
-          ...m.attachments.map(att => ({
+          ...mediaAttachments.map(att => ({
             inlineData: {
               mimeType: att.mimeType,
               data: att.data

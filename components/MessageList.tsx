@@ -6,8 +6,8 @@ import rehypeKatex from 'rehype-katex';
 import mermaid from 'mermaid';
 import { LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import PptxGenJS from 'pptxgenjs';
-import { Message, Slide, YouTubeVideo, ChartData, QuizData, FlashcardDeck } from '../types';
-import { Bot, User, Copy, Check, ExternalLink, Volume2, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard, Play, MonitorPlay, ListMusic, X, Download, Swords, Award, RotateCcw } from 'lucide-react';
+import { Message, Slide, YouTubeVideo, ChartData, QuizData, FlashcardDeck, Artifact } from '../types';
+import { Bot, User, Copy, Check, ExternalLink, Volume2, MessageSquarePlus, Brain, ChevronDown, ChevronRight, Clipboard, Play, MonitorPlay, ListMusic, X, Download, Swords, Award, RotateCcw, PanelRightOpen } from 'lucide-react';
 import { AVAILABLE_MODELS } from '../constants';
 
 interface MessageListProps {
@@ -16,6 +16,7 @@ interface MessageListProps {
   onPinMessage?: (index: number) => void;
   codeWrapping?: boolean;
   selectedVoice?: string;
+  onOpenArtifact?: (artifact: Artifact) => void;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -171,20 +172,40 @@ const CodeRunner: React.FC<{ code: string; language: string }> = ({ code, langua
 const SlideDeck: React.FC<{ slides: Slide[] }> = ({ slides }) => {
   const [current, setCurrent] = useState(0);
 
-  const exportPPTX = () => {
-    const pptx = new PptxGenJS();
-    slides.forEach(s => {
-      const slide = pptx.addSlide();
-      slide.addText(s.title, { x: 1, y: 1, w: '80%', fontSize: 24, bold: true });
-      slide.addText(s.content.join('\n'), { x: 1, y: 2, w: '80%', fontSize: 16 });
-      if (s.note) slide.addNotes(s.note);
-    });
-    pptx.writeFile({ fileName: "Presentation.pptx" });
+  const exportPPTX = async () => {
+    try {
+      // Robust initialization for PptxGenJS (handles various export formats from esm.sh)
+      const pptx = new PptxGenJS();
+      
+      slides.forEach(s => {
+        const slide = pptx.addSlide();
+        
+        // Add Title
+        slide.addText(s.title, { 
+          x: 0.5, y: 0.5, w: '90%', 
+          fontSize: 24, bold: true, color: '363636', align: 'center' 
+        });
+        
+        // Add Content (Bullets)
+        slide.addText(s.content.map(c => ({ text: c, options: { bullet: true } })), { 
+          x: 0.5, y: 1.5, w: '90%', h: '60%', 
+          fontSize: 16, color: '666666', valign: 'top' 
+        });
+        
+        // Add Notes
+        if (s.note) slide.addNotes(s.note);
+      });
+
+      await pptx.writeFile({ fileName: `Presentation_${Date.now()}.pptx` });
+    } catch (e: any) {
+      console.error("PPTX Export Error:", e);
+      alert("Failed to export presentation. " + e.message);
+    }
   };
 
   return (
     <div className="my-4 bg-gray-900 text-white rounded-xl overflow-hidden aspect-video shadow-2xl relative flex flex-col group">
-      <button onClick={exportPPTX} className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 p-2 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity z-10" title="Download PPTX">
+      <button onClick={exportPPTX} className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 p-2 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity z-10 backdrop-blur-sm" title="Download PPTX">
          <Download size={16} />
       </button>
       <div className="flex-1 flex items-center justify-center p-8 text-center bg-gradient-to-br from-gray-800 to-black">
@@ -211,9 +232,16 @@ const SlideDeck: React.FC<{ slides: Slide[] }> = ({ slides }) => {
   );
 };
 
-const DataChart: React.FC<{ chart: ChartData }> = ({ chart }) => {
+const DataChart: React.FC<{ chart: ChartData; onOpenArtifact?: (a: Artifact) => void }> = ({ chart, onOpenArtifact }) => {
   return (
-    <div className="my-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm">
+    <div className="my-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm relative group">
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+         {onOpenArtifact && (
+             <button onClick={() => onOpenArtifact({ id: Date.now().toString(), type: 'chart', title: chart.title, content: chart })} className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:bg-gray-100">
+                 <PanelRightOpen size={16} />
+             </button>
+         )}
+      </div>
       <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 text-center">{chart.title}</h3>
       <div className="w-full h-64">
         <ResponsiveContainer width="100%" height="100%">
@@ -287,7 +315,7 @@ const YouTubeCard: React.FC<{ video: YouTubeVideo }> = ({ video }) => {
 // --- Main Component ---
 
 export const MessageList: React.FC<MessageListProps> = ({ 
-  messages, onSuggestionClick, onPinMessage, codeWrapping = false 
+  messages, onSuggestionClick, onPinMessage, codeWrapping = false, onOpenArtifact, selectedVoice
 }) => {
   const endRef = useRef<HTMLDivElement>(null);
   
@@ -370,7 +398,7 @@ export const MessageList: React.FC<MessageListProps> = ({
 
               {msg.slidesData && <SlideDeck slides={msg.slidesData} />}
               
-              {msg.chartData && <DataChart chart={msg.chartData} />}
+              {msg.chartData && <DataChart chart={msg.chartData} onOpenArtifact={onOpenArtifact} />}
 
               {/* NEW: Quiz Rendering */}
               {msg.quizData && <QuizCard quiz={msg.quizData} />}
@@ -415,7 +443,14 @@ export const MessageList: React.FC<MessageListProps> = ({
                           <div className="relative group my-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
                              <div className="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                                <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{language || 'code'}</span>
-                               <button onClick={() => navigator.clipboard.writeText(codeString)} className="text-gray-400 hover:text-gray-600"><Clipboard size={14}/></button>
+                               <div className="flex items-center gap-2">
+                                  {onOpenArtifact && (
+                                     <button onClick={() => onOpenArtifact({ id: Date.now().toString(), type: 'code', title: 'Code Snippet', content: codeString, language })} className="text-gray-400 hover:text-brand-600">
+                                        <PanelRightOpen size={14} />
+                                     </button>
+                                  )}
+                                  <button onClick={() => navigator.clipboard.writeText(codeString)} className="text-gray-400 hover:text-gray-600"><Clipboard size={14}/></button>
+                               </div>
                              </div>
                             <div className="bg-gray-50 dark:bg-gray-900/50 p-4 overflow-x-auto text-xs md:text-sm">
                               <code {...props} className={`${className} ${codeWrapping ? 'whitespace-pre-wrap break-all' : ''}`}>{children}</code>

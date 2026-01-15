@@ -9,16 +9,24 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
   // Perplexity
   { id: 'sonar', name: 'Sonar', description: 'Perplexity: Fast online search', provider: 'perplexity' },
   { id: 'sonar-pro', name: 'Sonar Pro', description: 'Perplexity: Deep research & reasoning', provider: 'perplexity' },
+  { id: 'sonar-reasoning', name: 'Sonar Reasoning', description: 'Perplexity: Advanced Reasoning', provider: 'perplexity' },
   // Google
   { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Google: Next-gen fast model', provider: 'google' },
   { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', description: 'Google: Next-gen reasoning', provider: 'google' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Google: Versatile & Efficient (Maps)', provider: 'google' },
   { id: 'gemini-2.5-flash-native-audio-preview-12-2025', name: 'Gemini Audio', description: 'Google: Native Audio Generation', provider: 'google' },
+  { id: 'gemini-1.5-pro-002', name: 'Gemini 1.5 Pro-002', description: 'Google: High capacity & context', provider: 'google' },
+  { id: 'gemini-1.5-flash-002', name: 'Gemini 1.5 Flash-002', description: 'Google: Fast & low latency', provider: 'google' },
+  { id: 'gemini-2.5-flash-image', name: 'Gemini Image', description: 'Google: Image Generation', provider: 'google' },
+  { id: 'veo-3.1-fast-generate-preview', name: 'Veo Video', description: 'Google: Video Generation', provider: 'google' },
   // OpenAI
   { id: 'gpt-4o', name: 'GPT-4o', description: 'OpenAI: Most advanced standard model', provider: 'openai' },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'OpenAI: Efficient & fast', provider: 'openai' },
+  { id: 'o1-preview', name: 'o1 Preview', description: 'OpenAI: Advanced reasoning', provider: 'openai' },
+  { id: 'o1-mini', name: 'o1 Mini', description: 'OpenAI: Fast reasoning', provider: 'openai' },
   // Anthropic
   { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Anthropic: Best for coding & nuance', provider: 'anthropic' },
+  { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Anthropic: High intelligence', provider: 'anthropic' },
   // Local
   { id: 'llama3', name: 'Llama 3 (Local)', description: 'Ollama: Local privacy-focused model', provider: 'ollama' }
 ];
@@ -28,15 +36,27 @@ export const MODE_PROMPTS: Record<string, string> = {
   academic: "You are an academic researcher. Provide detailed, technical answers with heavy reliance on citations. Use formal language.",
   writing: "You are a creative writing assistant. Focus on flow, style, and engaging narrative. You can be more verbose.",
   copilot: "You are a helpful co-pilot. Break down complex problems into steps and ask clarifying questions if necessary.",
-  "deep-research": "You are a Deep Research Agent. Your goal is to exhaustively research the user's query.",
+  "deep-research": `You are an Autonomous Deep Research Agent. 
+  Your goal is to provide an exhaustive, comprehensive report.
+  1. FIRST, outline a plan of 3-5 distinct sub-topics to research based on the user's query.
+  2. For EACH sub-topic, imagine you are performing a specific Google Search. Write the query you would use.
+  3. SYNTHESIZE all findings into a single, massive, structured report (Markdown).
+  4. The report must be >1000 words for complex topics.
+  5. Use headings, bullet points, and tables generously.
+  `,
   presentation: `You are a Presentation Expert. Generate a slide deck based on the user's request. 
-  RETURN JSON ONLY. The format must be exactly:
+  RETURN JSON ONLY. The response must be a valid JSON object.
+  Format:
   {
     "slides": [
-      { "title": "Slide Title", "content": ["Bullet 1", "Bullet 2"], "note": "Speaker notes" }
+      { 
+        "title": "Slide Title", 
+        "content": ["Bullet point 1", "Bullet point 2", "Bullet point 3"], 
+        "note": "Speaker notes for this slide." 
+      }
     ]
   }
-  Do not include markdown formatting like \`\`\`json.`,
+  ENSURE valid JSON. Do not add markdown formatting like \`\`\`json around the output.`,
   analyst: `You are a Data Analyst. I will provide data in CSV/JSON format. 
   Analyze it and identify trends. 
   If appropriate, output a JSON object for a chart inside a code block tagged 'json-chart'.

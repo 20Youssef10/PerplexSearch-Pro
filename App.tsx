@@ -6,7 +6,10 @@ import { MessageList } from './components/MessageList';
 import { SearchInput } from './components/SearchInput';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Canvas } from './components/Canvas';
-import { Message, Conversation, Folder, SearchMode, AppSettings, Usage, Workspace, Gem, CanvasDocument, Attachment } from './types';
+import { LiveSession } from './components/LiveSession';
+import { ArtifactsPanel } from './components/ArtifactsPanel';
+import { KnowledgeBaseModal } from './components/KnowledgeBaseModal';
+import { Message, Conversation, Folder, SearchMode, AppSettings, Usage, Workspace, Gem, CanvasDocument, Attachment, SystemConfig, Artifact } from './types';
 import { streamCompletion } from './services/perplexityService';
 import { streamGeminiCompletion } from './services/geminiService';
 import { streamOpenAICompletion } from './services/openaiService';
@@ -18,7 +21,7 @@ import { DEFAULT_MODEL, NEW_CONVERSATION_ID, MODE_PROMPTS, FOLLOW_UP_INSTRUCTION
 import { subscribeToAuth, getUserData, saveUserData, rtdb } from './services/firebase';
 import { User } from 'firebase/auth';
 import { ref, onValue } from 'firebase/database';
-import { AlertCircle, X } from 'lucide-react';
+import { AlertCircle, X, ShieldAlert, Lock } from 'lucide-react';
 
 const ADMIN_EMAIL = "youssef2010.mahmoud@gmail.com";
 
@@ -46,14 +49,15 @@ const App: React.FC = () => {
       profile: { displayName: '', jobTitle: '', bio: '', avatarUrl: '' },
       modelPreferences: { temperature: 0.7, topP: 0.9, customInstructions: {} },
       interface: { fontSize: 'medium', compactMode: false, soundEnabled: true, codeWrapping: false, selectedVoice: '', language: 'en' },
-      customTranslations: {}
+      customTranslations: {},
+      customGems: []
     };
     return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
   });
 
   // UI State
   const [user, setUser] = useState<User | null>(null);
-  const [currentView, setCurrentView] = useState<'chat' | 'admin' | 'canvas'>('chat');
+  const [currentView, setCurrentView] = useState<'chat' | 'admin' | 'canvas' | 'live'>('chat');
   const [currentId, setCurrentId] = useState<string>(NEW_CONVERSATION_ID);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -66,9 +70,14 @@ const App: React.FC = () => {
   const [canvasDoc, setCanvasDoc] = useState<CanvasDocument>({ id: 'default', title: '', content: '', sources: [], createdAt: Date.now(), updatedAt: Date.now() });
   const [isCanvasExpanded, setIsCanvasExpanded] = useState(false);
   
+  // Artifacts & Knowledge Base
+  const [activeArtifact, setActiveArtifact] = useState<Artifact | null>(null);
+  const [isKnowledgeBaseOpen, setIsKnowledgeBaseOpen] = useState(false);
+  
   // Admin & System State
   const [isBanned, setIsBanned] = useState(false);
   const [broadcast, setBroadcast] = useState<{message: string, type: 'info'|'warning'} | null>(null);
+  const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const saveTimeoutRef = useRef<any>(null);
@@ -117,7 +126,10 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-      if (rtdb) return onValue(ref(rtdb, 'system/broadcast'), (snap) => setBroadcast(snap.exists() ? snap.val() : null));
+      if (rtdb) {
+        onValue(ref(rtdb, 'system/broadcast'), (snap) => setBroadcast(snap.exists() ? snap.val() : null));
+        onValue(ref(rtdb, 'system/config'), (snap) => setSystemConfig(snap.exists() ? snap.val() : null));
+      }
   }, []);
 
   useEffect(() => {
@@ -167,6 +179,31 @@ const App: React.FC = () => {
     e?.preventDefault();
     const query = (overrideInput || input).trim();
     if ((!query && (!fileAttachments || fileAttachments.length === 0)) || isLoading) return;
+
+    // --- SYSTEM & MODERATION CHECKS ---
+    if (systemConfig?.maintenanceMode && !isAdmin) {
+        alert("System is currently under maintenance. Please try again later.");
+        return;
+    }
+
+    if (systemConfig?.features) {
+       if (!isAdmin) {
+           if (fileAttachments && fileAttachments.length > 0 && !systemConfig.features.fileUploads) {
+               alert("File uploads are currently disabled by the administrator.");
+               return;
+           }
+       }
+    }
+
+    if (systemConfig?.moderation?.bannedKeywords && !isAdmin) {
+        const banned = systemConfig.moderation.bannedKeywords;
+        const lowerQuery = query.toLowerCase();
+        const foundBan = banned.find(word => lowerQuery.includes(word.toLowerCase()));
+        if (foundBan) {
+            alert(`Your query contains prohibited content: "${foundBan}". Please revise.`);
+            return;
+        }
+    }
 
     // Process attachments
     let attachments: Attachment[] = [];
@@ -236,7 +273,6 @@ const App: React.FC = () => {
     if (searchMode === 'arena') {
        const modelA = 'sonar-pro';
        const modelB = 'gpt-4o'; // Or fallback to available
-       // Check if keys exist
        if (!settings.apiKey || !settings.openaiApiKey) {
            alert("Arena requires both Perplexity and OpenAI keys.");
            setIsLoading(false);
@@ -260,7 +296,6 @@ const App: React.FC = () => {
        });
 
        try {
-          // Parallel execution
           const start = Date.now();
           const p1 = streamCompletion([{role:'user', content: query, timestamp: start}], modelA, settings.apiKey, (text) => {
              setConversations(prev => {
@@ -293,7 +328,7 @@ const App: React.FC = () => {
     if (provider === 'google') apiKey = settings.googleApiKey || '';
     if (provider === 'openai') apiKey = settings.openaiApiKey || '';
     if (provider === 'anthropic') apiKey = settings.anthropicApiKey || '';
-    if (provider === 'ollama') apiKey = 'dummy'; // No key needed
+    if (provider === 'ollama') apiKey = 'dummy'; 
 
     if (!apiKey && provider !== 'ollama') { alert(`Missing API Key for ${provider}`); setIsLoading(false); return; }
 
@@ -335,10 +370,22 @@ const App: React.FC = () => {
 
       const messagesForApi = activeConvo.messages.filter(m => m.timestamp < assistantMsgId);
 
-      // Inject File Context for RAG
+      // Inject Text File Context for RAG (Code, CSV, Text)
+      // We filter OUT media because Gemini service handles them via inlineData, and other services might not support them.
+      // Ideally, specific service handlers should decide, but for simplicity we inject text-based content into prompt for all.
       if (attachments.length > 0) {
-         const fileContext = attachments.map(a => `FILE: ${a.name}\nCONTENT:\n${a.data}`).join('\n\n');
-         messagesForApi[messagesForApi.length - 1].content += `\n\n[ATTACHED FILES]\n${fileContext}`;
+         const textAttachments = attachments.filter(a => 
+            !a.mimeType.startsWith('image/') && 
+            !a.mimeType.startsWith('audio/') && 
+            !a.mimeType.startsWith('video/') && 
+            a.mimeType !== 'application/pdf'
+         );
+
+         if (textAttachments.length > 0) {
+             const fileContext = textAttachments.map(a => `FILE: ${a.name}\nCONTENT:\n${a.data}`).join('\n\n');
+             // Append to the last user message's content
+             messagesForApi[messagesForApi.length - 1].content += `\n\n[ATTACHED TEXT FILES]\n${fileContext}`;
+         }
       }
 
       if (provider === 'perplexity') await streamCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
@@ -353,7 +400,6 @@ const App: React.FC = () => {
         const target = copy.find(c => c.id === tempId);
         if (target) {
            const lastMsg = target.messages[target.messages.length - 1];
-           
            try {
               if (searchMode === 'presentation' || fullContent.includes('"slides":')) {
                   const jsonMatch = fullContent.match(/\{[\s\S]*"slides"[\s\S]*\}/);
@@ -380,7 +426,7 @@ const App: React.FC = () => {
                       if (data.questions) {
                           lastMsg.type = 'quiz';
                           lastMsg.quizData = data;
-                          lastMsg.content = ""; // Hide raw JSON
+                          lastMsg.content = ""; 
                       }
                   }
               } else if (searchMode === 'flashcards' || fullContent.includes('"cards":')) {
@@ -390,7 +436,7 @@ const App: React.FC = () => {
                       if (data.cards) {
                           lastMsg.type = 'flashcards';
                           lastMsg.flashcardsData = data;
-                          lastMsg.content = ""; // Hide raw JSON
+                          lastMsg.content = ""; 
                       }
                   }
               }
@@ -416,7 +462,37 @@ const App: React.FC = () => {
     }
   };
 
-  if (isBanned) return <div className="h-screen flex items-center justify-center">Account Suspended</div>;
+  if (systemConfig?.maintenanceMode && !isAdmin) {
+      return (
+          <div className="h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-center p-6">
+              <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-2xl max-w-md w-full border border-gray-100 dark:border-gray-700">
+                  <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-600">
+                      <Lock size={32} />
+                  </div>
+                  <h1 className="text-2xl font-black mb-2 text-gray-900 dark:text-white">Under Maintenance</h1>
+                  <p className="text-gray-500 dark:text-gray-400 mb-6">We are currently upgrading our systems to make your research experience even better. Please check back shortly.</p>
+                  {isAdmin && (
+                     <button onClick={() => setCurrentView('admin')} className="text-sm font-bold text-brand-600 hover:underline">Access Admin Dashboard</button>
+                  )}
+              </div>
+          </div>
+      );
+  }
+
+  if (isBanned) {
+      return (
+        <div className="h-screen flex flex-col items-center justify-center bg-red-50 dark:bg-red-900/10 text-center p-6">
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-2xl max-w-md w-full border border-red-100 dark:border-red-900/30">
+                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6 text-red-600">
+                    <ShieldAlert size={32} />
+                </div>
+                <h1 className="text-2xl font-black mb-2 text-gray-900 dark:text-white">Account Suspended</h1>
+                <p className="text-gray-500 dark:text-gray-400 mb-6">Your account has been flagged for violating our terms of service.</p>
+                <div className="text-xs text-gray-400">ID: {user?.uid}</div>
+            </div>
+        </div>
+      );
+  }
 
   return (
     <div className="flex h-screen md:h-screen h-[100dvh] overflow-hidden bg-gray-50 dark:bg-gray-900">
@@ -425,6 +501,21 @@ const App: React.FC = () => {
            <AlertCircle size={20} /> <span className="font-bold text-sm">{broadcast.message}</span> <button onClick={() => setBroadcast(null)}><X size={14}/></button>
         </div>
       )}
+      
+      {currentView === 'live' && (
+        <LiveSession 
+          apiKey={settings.googleApiKey || ''}
+          onClose={() => setCurrentView('chat')}
+        />
+      )}
+
+      <KnowledgeBaseModal 
+        isOpen={isKnowledgeBaseOpen} 
+        onClose={() => setIsKnowledgeBaseOpen(false)}
+        settings={settings}
+        setSettings={setSettings}
+      />
+
       {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />}
       <div className={`fixed inset-y-0 left-0 z-30 w-72 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         <Sidebar 
@@ -433,7 +524,7 @@ const App: React.FC = () => {
           currentId={currentId}
           workspaces={DEFAULT_WORKSPACES}
           currentWorkspaceId={currentWorkspaceId}
-          gems={DEFAULT_GEMS}
+          gems={[...DEFAULT_GEMS, ...(settings.customGems || [])]}
           onSelectWorkspace={setCurrentWorkspaceId}
           onSelectGem={(gem) => { handleNewChat(); setSettings(s => ({...s, systemInstruction: gem.systemPrompt})); }}
           onSelect={(id) => { setCurrentId(id); setCurrentView('chat'); if(window.innerWidth < 768) setIsSidebarOpen(false); }}
@@ -446,6 +537,7 @@ const App: React.FC = () => {
           isAdmin={isAdmin}
           onGoAdmin={() => setCurrentView('admin')}
           translations={activeTranslations}
+          onCreateGem={(newGem) => setSettings(prev => ({...prev, customGems: [...(prev.customGems || []), newGem]}))}
         />
       </div>
 
@@ -454,12 +546,14 @@ const App: React.FC = () => {
           <AdminDashboard onBack={() => setCurrentView('chat')} />
         ) : (
           <div className="flex flex-row h-full">
-            <div className={`flex-1 flex flex-col h-full relative transition-all duration-300 ${currentView === 'canvas' ? (isCanvasExpanded ? 'hidden' : 'w-1/2') : 'w-full'} ${settings.interface.compactMode ? 'text-sm' : ''}`}>
+            <div className={`flex flex-col h-full relative transition-all duration-300 ${activeArtifact ? 'w-1/2 hidden md:flex border-r border-gray-200 dark:border-gray-800' : 'w-full'} ${currentView === 'canvas' ? (isCanvasExpanded ? 'hidden' : 'w-1/2') : (activeArtifact ? 'w-1/2' : 'w-full')} ${settings.interface.compactMode ? 'text-sm' : ''}`}>
               <Header 
                 isSidebarOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                 settings={settings} setSettings={setSettings} onClearHistory={handleClearHistory}
                 user={user} isTemporary={isTemporary} onToggleTemporary={() => setIsTemporary(!isTemporary)}
                 onExport={(fmt) => { /* Reuse existing export logic */ }}
+                onStartLive={() => setCurrentView('live')}
+                onOpenKnowledgeBase={() => setIsKnowledgeBaseOpen(true)}
               />
               <main className="flex-1 overflow-y-auto scroll-smooth">
                 {messages.length === 0 ? (
@@ -475,7 +569,13 @@ const App: React.FC = () => {
                   </div>
                 ) : (
                   <div className={`max-w-4xl mx-auto w-full pb-48 pt-6 ${settings.interface.compactMode ? 'px-2' : ''}`}>
-                    <MessageList messages={messages} onSuggestionClick={(t) => { setInput(t); handleSubmit(undefined, t); }} codeWrapping={settings.interface.codeWrapping} selectedVoice={settings.interface.selectedVoice} />
+                    <MessageList 
+                      messages={messages} 
+                      onSuggestionClick={(t) => { setInput(t); handleSubmit(undefined, t); }} 
+                      codeWrapping={settings.interface.codeWrapping} 
+                      selectedVoice={settings.interface.selectedVoice} 
+                      onOpenArtifact={(artifact) => setActiveArtifact(artifact)}
+                    />
                   </div>
                 )}
               </main>
@@ -489,6 +589,13 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
+            
+            {activeArtifact && !isCanvasExpanded && (
+               <div className="w-1/2 h-full absolute md:static inset-0 z-40 bg-white dark:bg-gray-900">
+                  <ArtifactsPanel artifact={activeArtifact} onClose={() => setActiveArtifact(null)} />
+               </div>
+            )}
+
             {currentView === 'canvas' && (
               <Canvas 
                 document={canvasDoc} 

@@ -71,15 +71,15 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({ conversations, f
          <ForceGraph3D
             graphData={graphData}
             nodeLabel="name"
-            nodeColor={node => {
-                if ((node as any).group === 'folder') return isDark ? '#f59e0b' : '#d97706';
+            nodeColor={(node: any) => {
+                if (node.group === 'folder') return isDark ? '#f59e0b' : '#d97706';
                 return isDark ? '#0d9488' : '#0891b2';
             }}
             linkColor={() => isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}
             backgroundColor={isDark ? '#111827' : '#ffffff'}
             nodeRelSize={6}
-            onNodeClick={node => onSelectNode(node.id as string)}
-            linkWidth={link => (link as any).value || 1}
+            onNodeClick={(node: any) => onSelectNode(node.id as string)}
+            linkWidth={(link: any) => link.value || 1}
             linkOpacity={0.5}
          />
       </div>

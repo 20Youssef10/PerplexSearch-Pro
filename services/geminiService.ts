@@ -37,11 +37,13 @@ const executeCustomTool = async (tool: CustomTool, args: any): Promise<any> => {
 
 export const generateEmbeddings = async (text: string, apiKey: string): Promise<number[]> => {
     const ai = new GoogleGenAI({ apiKey });
+    // Correct usage for newer SDK versions often uses 'contents' and returns 'embeddings'
     const result = await ai.models.embedContent({
         model: 'text-embedding-004',
-        content: text
+        contents: [{ parts: [{ text: text }] }]
     });
-    return result.embedding?.values || [];
+    // result.embeddings is an array of ContentEmbedding objects
+    return result.embeddings?.[0]?.values || [];
 };
 
 export const generateAudioOverview = async (sourcesContent: string, apiKey: string): Promise<string | null> => {

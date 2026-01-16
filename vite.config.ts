@@ -9,6 +9,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      workbox: {
+        cleanupOutdatedCaches: true,
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+      },
       manifest: {
         name: 'PerplexSearch Pro',
         short_name: 'PerplexSearch',
@@ -32,11 +36,23 @@ export default defineConfig({
     })
   ],
   define: {
-    // Polyfill process.env for the app's existing code usage
     'process.env': {}
   },
   build: {
     outDir: 'dist',
-    sourcemap: false
+    sourcemap: false,
+    minify: false, // Disabled to prevent OOM on constrained devices
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          firebase: ['firebase/app', 'firebase/auth', 'firebase/database', 'firebase/firestore'],
+          ui: ['lucide-react'],
+          charts: ['recharts'],
+          viz: ['mermaid', 'react-force-graph-3d', 'three']
+        }
+      }
+    }
   }
 });

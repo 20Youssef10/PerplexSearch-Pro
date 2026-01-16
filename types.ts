@@ -1,4 +1,5 @@
 
+
 export interface Usage {
   prompt_tokens: number;
   completion_tokens: number;
@@ -149,6 +150,47 @@ export interface Gem {
   model?: string;
 }
 
+export interface Mission {
+  id: string;
+  title: string;
+  description: string;
+  frequency: 'once' | 'daily' | 'weekly';
+  status: 'active' | 'paused' | 'completed';
+  lastRun?: number;
+  nextRun?: number;
+  prompt: string;
+}
+
+// New Types for Veo, Tools, Vectors
+export interface VideoProject {
+  id: string;
+  title: string;
+  clips: {
+     id: string;
+     prompt: string;
+     url: string; // Blob or Remote URL
+     duration: number;
+     settings: any;
+  }[];
+}
+
+export interface CustomTool {
+  id: string;
+  name: string;
+  description: string;
+  url: string;
+  method: 'GET' | 'POST';
+  headers?: Record<string, string>;
+  parameters: string; // JSON Schema string
+}
+
+export interface VectorDocument {
+  id: string;
+  content: string;
+  embedding: number[];
+  metadata: any;
+}
+
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   model: string;
@@ -157,9 +199,13 @@ export interface AppSettings {
   openaiApiKey?: string;
   anthropicApiKey?: string;
   ollamaBaseUrl?: string;
+  openaiBaseUrl?: string; // New
+  anthropicBaseUrl?: string; // New
   systemInstruction: string;
   projectContext: string;
   memories: string[];
+  missions: Mission[];
+  customTools: CustomTool[]; 
   profile: UserProfile;
   modelPreferences: ModelPreferences;
   interface: InterfaceSettings;
@@ -231,4 +277,11 @@ export interface CanvasDocument {
   sources: CanvasSource[];
   createdAt: number;
   updatedAt: number;
+}
+
+export interface CanvasUser {
+  userId: string;
+  displayName: string;
+  avatarUrl: string;
+  lastActive: number;
 }

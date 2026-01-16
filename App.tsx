@@ -9,7 +9,13 @@ import { Canvas } from './components/Canvas';
 import { LiveSession } from './components/LiveSession';
 import { ArtifactsPanel } from './components/ArtifactsPanel';
 import { KnowledgeBaseModal } from './components/KnowledgeBaseModal';
-import { Message, Conversation, Folder, SearchMode, AppSettings, Usage, Workspace, Gem, CanvasDocument, Attachment, SystemConfig, Artifact } from './types';
+import { KnowledgeGraph } from './components/KnowledgeGraph';
+import { MissionsPanel } from './components/MissionsPanel';
+import { VeoStudio } from './components/VeoStudio';
+import { ToolbeltPanel } from './components/ToolbeltPanel';
+import { SemanticSearch } from './components/SemanticSearch';
+import { WebReader } from './components/WebReader';
+import { Message, Conversation, Folder, SearchMode, AppSettings, Usage, Workspace, Gem, CanvasDocument, Attachment, SystemConfig, Artifact, Mission } from './types';
 import { streamCompletion } from './services/perplexityService';
 import { streamGeminiCompletion } from './services/geminiService';
 import { streamOpenAICompletion } from './services/openaiService';
@@ -46,6 +52,8 @@ const App: React.FC = () => {
       systemInstruction: '',
       projectContext: '',
       memories: [],
+      missions: [],
+      customTools: [],
       profile: { displayName: '', jobTitle: '', bio: '', avatarUrl: '' },
       modelPreferences: { temperature: 0.7, topP: 0.9, customInstructions: {} },
       interface: { fontSize: 'medium', compactMode: false, soundEnabled: true, codeWrapping: false, selectedVoice: '', language: 'en' },
@@ -69,6 +77,14 @@ const App: React.FC = () => {
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>('personal');
   const [canvasDoc, setCanvasDoc] = useState<CanvasDocument>({ id: 'default', title: '', content: '', sources: [], createdAt: Date.now(), updatedAt: Date.now() });
   const [isCanvasExpanded, setIsCanvasExpanded] = useState(false);
+  
+  // Modals
+  const [showGraph, setShowGraph] = useState(false);
+  const [showMissions, setShowMissions] = useState(false);
+  const [showStudio, setShowStudio] = useState(false);
+  const [showToolbelt, setShowToolbelt] = useState(false);
+  const [showSemanticSearch, setShowSemanticSearch] = useState(false);
+  const [showWebReader, setShowWebReader] = useState(false);
   
   // Artifacts & Knowledge Base
   const [activeArtifact, setActiveArtifact] = useState<Artifact | null>(null);
@@ -173,6 +189,19 @@ const App: React.FC = () => {
        const title = data.choices?.[0]?.message?.content?.replace(/["']/g, '').trim() || firstQuery;
        setConversations(prev => prev.map(c => c.id === convoId ? { ...c, title } : c));
      } catch (e) {}
+  };
+
+  const handleRunMission = (mission: Mission) => {
+     // Trigger deep research with mission params
+     setShowMissions(false);
+     setSearchMode('deep-research');
+     setInput(`MISSION: ${mission.title}\n${mission.prompt}`);
+     handleSubmit(undefined, `MISSION: ${mission.title}\n${mission.prompt}`);
+  };
+
+  const handleWebImport = (text: string, title: string) => {
+     setSettings(prev => ({...prev, projectContext: prev.projectContext + `\n\n--- ${title} ---\n${text}\n--- END ---` }));
+     alert("Content imported to Knowledge Base.");
   };
 
   const handleSubmit = async (e?: React.FormEvent, overrideInput?: string, fileAttachments?: File[]) => {
@@ -313,7 +342,7 @@ const App: React.FC = () => {
                 if (msg && msg.arenaComparison) { msg.arenaComparison.modelB.content = text; msg.arenaComparison.modelB.time = Date.now() - start; }
                 return copy;
              });
-          }, signal);
+          }, signal, undefined, settings.openaiBaseUrl);
 
           await Promise.all([p1, p2]);
        } catch (e) {}
@@ -389,9 +418,10 @@ const App: React.FC = () => {
       }
 
       if (provider === 'perplexity') await streamCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
-      else if (provider === 'google') await streamGeminiCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
-      else if (provider === 'openai') await streamOpenAICompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
-      else if (provider === 'anthropic') await streamAnthropicCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem);
+      // Pass custom tools to Gemini
+      else if (provider === 'google') await streamGeminiCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem, settings.customTools);
+      else if (provider === 'openai') await streamOpenAICompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem, settings.openaiBaseUrl);
+      else if (provider === 'anthropic') await streamAnthropicCompletion(messagesForApi, settings.model, apiKey, onChunk, signal, combinedSystem, settings.anthropicBaseUrl);
       else if (provider === 'ollama') await streamOllamaCompletion(messagesForApi, settings.model, settings.ollamaBaseUrl, onChunk, signal, combinedSystem);
 
       // Post-Processing for Analyst/Slides/Quiz/Flashcards
@@ -516,6 +546,56 @@ const App: React.FC = () => {
         setSettings={setSettings}
       />
 
+      {showGraph && (
+          <KnowledgeGraph 
+             conversations={conversations}
+             folders={folders}
+             onSelectNode={(id) => { setCurrentId(id); setShowGraph(false); }}
+             onClose={() => setShowGraph(false)}
+             isDark={settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)}
+          />
+      )}
+
+      {showMissions && (
+          <MissionsPanel 
+             settings={settings}
+             setSettings={setSettings}
+             onRunMission={handleRunMission}
+             onClose={() => setShowMissions(false)}
+          />
+      )}
+      
+      {showStudio && (
+          <VeoStudio
+             settings={settings}
+             onClose={() => setShowStudio(false)}
+          />
+      )}
+
+      {showToolbelt && (
+          <ToolbeltPanel
+             settings={settings}
+             setSettings={setSettings}
+             onClose={() => setShowToolbelt(false)}
+          />
+      )}
+
+      {showSemanticSearch && (
+          <SemanticSearch
+             settings={settings}
+             conversations={conversations}
+             onSelectResult={(id) => setCurrentId(id)}
+             onClose={() => setShowSemanticSearch(false)}
+          />
+      )}
+
+      {showWebReader && (
+          <WebReader
+             onImport={handleWebImport}
+             onClose={() => setShowWebReader(false)}
+          />
+      )}
+
       {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />}
       <div className={`fixed inset-y-0 left-0 z-30 w-72 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         <Sidebar 
@@ -538,6 +618,12 @@ const App: React.FC = () => {
           onGoAdmin={() => setCurrentView('admin')}
           translations={activeTranslations}
           onCreateGem={(newGem) => setSettings(prev => ({...prev, customGems: [...(prev.customGems || []), newGem]}))}
+          onOpenGraph={() => setShowGraph(true)}
+          onOpenMissions={() => setShowMissions(true)}
+          onOpenStudio={() => setShowStudio(true)}
+          onOpenToolbelt={() => setShowToolbelt(true)}
+          onOpenSemanticSearch={() => setShowSemanticSearch(true)}
+          onOpenWebReader={() => setShowWebReader(true)}
         />
       </div>
 

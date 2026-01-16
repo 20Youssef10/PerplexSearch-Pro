@@ -1,7 +1,8 @@
 
 import React, { useState, useRef } from 'react';
-import { X, Upload, FileText, Trash2, Save, CheckCircle } from 'lucide-react';
+import { X, Upload, FileText, Trash2, Save, CheckCircle, Image as ImageIcon, Mic, Loader2, ScanText } from 'lucide-react';
 import { AppSettings } from '../types';
+import { extractTextFromMedia } from '../services/extractionService';
 
 interface KnowledgeBaseModalProps {
   isOpen: boolean;
@@ -14,7 +15,9 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
   isOpen, onClose, settings, setSettings 
 }) => {
   const [context, setContext] = useState(settings.projectContext);
+  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -34,6 +37,26 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
       };
       reader.readAsText(file);
     }
+  };
+
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+     if (!e.target.files || e.target.files.length === 0) return;
+     if (!settings.googleApiKey) {
+         alert("Google Gemini API Key is required for Multimodal Extraction (OCR/Transcription).");
+         return;
+     }
+
+     setIsProcessing(true);
+     try {
+         const extractedText = await extractTextFromMedia(Array.from(e.target.files), settings.googleApiKey);
+         setContext(prev => prev + extractedText);
+     } catch (err: any) {
+         alert("Extraction failed: " + err.message);
+     } finally {
+         setIsProcessing(false);
+         // Reset input
+         if (mediaInputRef.current) mediaInputRef.current.value = '';
+     }
   };
 
   return (
@@ -65,13 +88,37 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
               />
            </div>
 
-           <div className="p-4 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl flex flex-col items-center justify-center gap-2 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/10 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-              <input type="file" ref={fileInputRef} hidden onChange={handleFileUpload} accept=".txt,.md,.json,.csv,.js,.ts,.py" />
-              <div className="p-3 bg-white dark:bg-gray-800 rounded-full shadow-sm text-brand-600">
-                 <Upload size={20} />
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl flex flex-col items-center justify-center gap-2 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/10 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                  <input type="file" ref={fileInputRef} hidden onChange={handleFileUpload} accept=".txt,.md,.json,.csv,.js,.ts,.py" />
+                  <div className="p-3 bg-white dark:bg-gray-800 rounded-full shadow-sm text-brand-600">
+                    <Upload size={20} />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Upload Text Files</p>
+                    <p className="text-[10px] text-gray-400">Code, Markdown, JSON</p>
+                  </div>
               </div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Click to upload text files</p>
-              <p className="text-xs text-gray-400">Content will be appended to the context above.</p>
+
+              <div className="p-4 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl flex flex-col items-center justify-center gap-2 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors cursor-pointer relative" onClick={() => !isProcessing && mediaInputRef.current?.click()}>
+                  <input type="file" ref={mediaInputRef} hidden onChange={handleMediaUpload} accept="image/*,audio/*,video/*" disabled={isProcessing} />
+                  {isProcessing ? (
+                      <div className="flex flex-col items-center animate-pulse">
+                          <Loader2 size={24} className="text-blue-500 animate-spin mb-2" />
+                          <p className="text-xs text-blue-500 font-bold">Analyzing Media...</p>
+                      </div>
+                  ) : (
+                      <>
+                        <div className="p-3 bg-white dark:bg-gray-800 rounded-full shadow-sm text-blue-600 flex gap-1">
+                            <ScanText size={20} />
+                        </div>
+                        <div className="text-center">
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Multimodal Extraction</p>
+                            <p className="text-[10px] text-gray-400">OCR Images & Transcribe Audio</p>
+                        </div>
+                      </>
+                  )}
+              </div>
            </div>
         </div>
 

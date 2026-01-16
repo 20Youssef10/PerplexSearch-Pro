@@ -3,12 +3,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Maximize2, Minimize2, Download, FileText, Bold, Italic, 
   List, Wand2, Plus, X, Headphones, Play, Pause, 
-  Sparkles, Image as ImageIcon, CheckCircle, LayoutTemplate
+  Sparkles, Image as ImageIcon, CheckCircle, LayoutTemplate,
+  Users, ChevronDown, FileDown, Braces
 } from 'lucide-react';
-import { CanvasDocument, CanvasSource } from '../types';
-import { rtdb } from '../services/firebase';
-import { ref, onValue, set as firebaseSet } from 'firebase/database';
+import { CanvasDocument, CanvasSource, CanvasUser } from '../types';
+import { rtdb, auth } from '../services/firebase';
+import { ref, onValue, set as firebaseSet, onDisconnect, remove } from 'firebase/database';
 import { generateAudioOverview } from '../services/geminiService';
+import jsPDF from 'jspdf';
 
 interface CanvasProps {
   document: CanvasDocument;
@@ -28,21 +30,61 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Collaborative State
+  const [activeUsers, setActiveUsers] = useState<CanvasUser[]>([]);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
-  // Sync with Firebase
+  // Sync with Firebase & Presence
   useEffect(() => {
     if (rtdb && document.id !== 'default') {
         const docRef = ref(rtdb, `canvas/${document.id}`);
-        const unsubscribe = onValue(docRef, (snapshot) => {
+        const usersRef = ref(rtdb, `canvas/${document.id}/users`);
+
+        // 1. Content Sync
+        const unsubDoc = onValue(docRef, (snapshot) => {
             const val = snapshot.val();
-            if (val) {
-                // Merge remote updates if they are newer
-                if (val.updatedAt > document.updatedAt) {
-                    onUpdate(val);
-                }
+            if (val && val.updatedAt > document.updatedAt) {
+                onUpdate(val);
             }
         });
-        return () => unsubscribe();
+
+        // 2. Presence Logic
+        const currentUser = auth?.currentUser;
+        if (currentUser) {
+            const myUserRef = ref(rtdb, `canvas/${document.id}/users/${currentUser.uid}`);
+            const userData: CanvasUser = {
+                userId: currentUser.uid,
+                displayName: currentUser.displayName || 'Anonymous',
+                avatarUrl: currentUser.photoURL || '',
+                lastActive: Date.now()
+            };
+            
+            // Set presence
+            firebaseSet(myUserRef, userData);
+            // Remove on disconnect
+            onDisconnect(myUserRef).remove();
+        }
+
+        // 3. Listen to other users
+        const unsubUsers = onValue(usersRef, (snapshot) => {
+             const val = snapshot.val();
+             if (val) {
+                 const usersList = Object.values(val) as CanvasUser[];
+                 // Filter out stale users > 5 min? For now just show all connected
+                 setActiveUsers(usersList);
+             } else {
+                 setActiveUsers([]);
+             }
+        });
+
+        return () => {
+            unsubDoc();
+            unsubUsers();
+            if (currentUser) {
+                remove(ref(rtdb, `canvas/${document.id}/users/${currentUser.uid}`));
+            }
+        };
     }
   }, [document.id]);
 
@@ -85,6 +127,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   };
 
   const handleGenerateAudio = async () => {
+      // ... existing audio logic ...
       const activeSources = (document.sources || []).filter(s => s.isSelected);
       if (activeSources.length === 0 && !document.content) {
           alert("Please select sources or add content to generate an audio overview.");
@@ -95,10 +138,8 @@ export const Canvas: React.FC<CanvasProps> = ({
       
       setIsGeneratingAudio(true);
       try {
-          // Get API Key from localStorage for simplicity in this component, or use a context/prop
-          // Assuming user settings are stored in localStorage as per App.tsx
           const settings = JSON.parse(localStorage.getItem('app_settings') || '{}');
-          const apiKey = settings.googleApiKey; // NotebookLM features typically use Gemini
+          const apiKey = settings.googleApiKey; 
 
           if (!apiKey) {
               alert("Google Gemini API Key is required for Audio Overview.");
@@ -132,10 +173,50 @@ export const Canvas: React.FC<CanvasProps> = ({
       setIsPlaying(!isPlaying);
   };
 
+  // --- Export Logic ---
+
+  const exportPDF = () => {
+      const doc = new jsPDF();
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(20);
+      doc.text(document.title || "Untitled", 20, 20);
+      
+      doc.setFont("times", "normal");
+      doc.setFontSize(12);
+      
+      const splitText = doc.splitTextToSize(document.content, 170);
+      doc.text(splitText, 20, 40);
+      
+      doc.save(`${document.title || 'document'}.pdf`);
+      setShowExportMenu(false);
+  };
+
+  const exportLaTeX = () => {
+      const latexContent = `
+\\documentclass{article}
+\\usepackage{hyperref}
+\\title{${document.title || 'Untitled'}}
+\\date{\\today}
+\\begin{document}
+\\maketitle
+
+${document.content.replace(/#/g, '\\#').replace(/_/g, '\\_')}
+
+\\end{document}
+      `;
+      const blob = new Blob([latexContent], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${document.title || 'document'}.tex`;
+      a.click();
+      setShowExportMenu(false);
+  };
+
   return (
     <div className={`flex h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 transition-all duration-300 ${isExpanded ? 'w-full absolute inset-0 z-40' : 'w-full md:w-[600px] lg:w-[800px]'}`}>
       
-      {/* LEFT SIDEBAR: SOURCES (NotebookLM Style) */}
+      {/* LEFT SIDEBAR: SOURCES */}
       <div className={`w-64 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-all ${showSources ? 'translate-x-0' : '-translate-x-full absolute z-10 h-full shadow-xl'}`}>
          <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
              <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">Sources</h3>
@@ -181,6 +262,18 @@ export const Canvas: React.FC<CanvasProps> = ({
                      className="bg-transparent font-bold text-lg outline-none text-gray-800 dark:text-gray-100 placeholder-gray-400 w-48 md:w-auto"
                      placeholder="Untitled Notebook"
                  />
+                 
+                 {/* Presence Avatars */}
+                 <div className="flex -space-x-2 ml-4">
+                     {activeUsers.map((u, i) => (
+                         <img key={u.userId} src={u.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.userId}`} title={u.displayName} className="w-6 h-6 rounded-full border-2 border-white dark:border-gray-900" />
+                     ))}
+                     {activeUsers.length > 3 && (
+                         <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-gray-900 flex items-center justify-center text-[9px] font-bold">
+                             +{activeUsers.length - 3}
+                         </div>
+                     )}
+                 </div>
              </div>
              
              <div className="flex items-center gap-2">
@@ -205,6 +298,23 @@ export const Canvas: React.FC<CanvasProps> = ({
                         <span className="hidden sm:inline">Deep Dive</span>
                      </button>
                  )}
+
+                 {/* Export Menu */}
+                 <div className="relative">
+                    <button onClick={() => setShowExportMenu(!showExportMenu)} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold rounded-full transition-all">
+                        <Download size={14} /> Export
+                    </button>
+                    {showExportMenu && (
+                        <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in zoom-in-95">
+                            <button onClick={exportPDF} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm">
+                                <FileDown size={16} className="text-red-500" /> Academic PDF
+                            </button>
+                            <button onClick={exportLaTeX} className="w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm">
+                                <Braces size={16} className="text-blue-500" /> LaTeX Source
+                            </button>
+                        </div>
+                    )}
+                 </div>
 
                  <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-1" />
                  <button onClick={onToggleExpand} className="p-2 text-gray-400 hover:text-gray-600">{isExpanded ? <Minimize2 size={18}/> : <Maximize2 size={18}/>}</button>

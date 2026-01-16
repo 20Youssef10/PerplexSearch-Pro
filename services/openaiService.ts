@@ -1,3 +1,4 @@
+
 import { Message, Usage } from '../types';
 
 export const streamOpenAICompletion = async (
@@ -6,7 +7,8 @@ export const streamOpenAICompletion = async (
   apiKey: string,
   onChunk: (content: string, citations?: string[], usage?: Usage) => void,
   signal?: AbortSignal,
-  systemPrompt?: string
+  systemPrompt?: string,
+  baseUrl?: string
 ) => {
   // Check if model is o1 series (o1-preview, o1-mini)
   const isO1 = model.startsWith('o1');
@@ -39,8 +41,10 @@ export const streamOpenAICompletion = async (
     }
   }
 
+  const url = (baseUrl || 'https://api.openai.com/v1').replace(/\/$/, '') + '/chat/completions';
+
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -56,6 +60,10 @@ export const streamOpenAICompletion = async (
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      // Check for common CORS error (status 0 or opaque) in some environments, or explicit 4xx
+      if (response.status === 0) {
+         throw new Error("CORS Error: The browser blocked the request to OpenAI. Please configure a Proxy Base URL in settings or use a local proxy.");
+      }
       throw new Error(errorData.error?.message || `OpenAI API Error: ${response.statusText}`);
     }
 

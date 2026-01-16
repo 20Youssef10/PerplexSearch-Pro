@@ -1,6 +1,48 @@
 
-import { GoogleGenAI, GenerateContentResponse, Modality } from "@google/genai";
-import { Message, Attachment, Usage } from '../types';
+import { GoogleGenAI, GenerateContentResponse, Modality, FunctionDeclaration, Type } from "@google/genai";
+import { Message, Attachment, Usage, CustomTool } from '../types';
+
+// Helper to execute user-defined tools
+const executeCustomTool = async (tool: CustomTool, args: any): Promise<any> => {
+  try {
+    const url = new URL(tool.url);
+    const method = tool.method || 'GET';
+    const headers = tool.headers || {};
+    
+    // Simple replacement of path params if they exist in args
+    let finalUrl = tool.url;
+    Object.keys(args).forEach(key => {
+        if (finalUrl.includes(`{${key}}`)) {
+            finalUrl = finalUrl.replace(`{${key}}`, args[key]);
+            delete args[key];
+        }
+    });
+
+    let body = undefined;
+    if (method === 'POST') {
+        body = JSON.stringify(args);
+        headers['Content-Type'] = 'application/json';
+    } else if (method === 'GET') {
+        const params = new URLSearchParams(args);
+        finalUrl += `?${params.toString()}`;
+    }
+
+    const response = await fetch(finalUrl, { method, headers, body });
+    const data = await response.json();
+    return data;
+  } catch (e: any) {
+    return { error: e.message };
+  }
+};
+
+export const generateEmbeddings = async (text: string, apiKey: string): Promise<number[]> => {
+    const ai = new GoogleGenAI({ apiKey });
+    const result = await ai.models.embedContent({
+        model: 'text-embedding-004',
+        content: text
+    });
+    return result.embedding?.values || [];
+};
 
 export const generateAudioOverview = async (sourcesContent: string, apiKey: string): Promise<string | null> => {
   const ai = new GoogleGenAI({ apiKey });
@@ -46,7 +88,8 @@ export const streamGeminiCompletion = async (
   apiKey: string,
   onChunk: (content: string, citations?: string[], usage?: Usage, grounding?: any, audioData?: string) => void,
   signal?: AbortSignal,
-  systemPrompt?: string
+  systemPrompt?: string,
+  customTools?: CustomTool[]
 ) => {
   const ai = new GoogleGenAI({ apiKey });
 
@@ -77,7 +120,7 @@ export const streamGeminiCompletion = async (
     return;
   }
 
-  // 1. VEO VIDEO GENERATION
+  // 1. VEO VIDEO GENERATION (Moved to VeoStudio component mostly, but kept basic support here)
   if (model === 'veo-3.1-fast-generate-preview') {
     const lastMsg = messages[messages.length - 1];
     const prompt = lastMsg.content;
@@ -119,8 +162,6 @@ export const streamGeminiCompletion = async (
   // 2. IMAGE GENERATION/EDITING
   if (model === 'gemini-2.5-flash-image') {
     const contents = messages.map(m => {
-        // Only include actual media attachments as inlineData
-        // Text attachments are already in m.content via App.tsx injection
         const mediaAttachments = (m.attachments || []).filter(a => 
             a.mimeType.startsWith('image/') || 
             a.mimeType.startsWith('video/') ||
@@ -180,10 +221,8 @@ export const streamGeminiCompletion = async (
     return;
   }
 
-  // 3. STANDARD TEXT/MULTIMODAL STREAMING
+  // 3. STANDARD TEXT/MULTIMODAL STREAMING + TOOLS
   let contents = messages.map(m => {
-    // Only map MEDIA attachments to inlineData. 
-    // Text attachments are assumed to be concatenated into m.content by the caller.
     const mediaAttachments = (m.attachments || []).filter(a => 
         a.mimeType.startsWith('image/') || 
         a.mimeType.startsWith('audio/') || 
@@ -215,12 +254,37 @@ export const streamGeminiCompletion = async (
     systemInstruction: systemPrompt,
   };
 
+  // Convert CustomTools to FunctionDeclarations
+  if (customTools && customTools.length > 0) {
+      const toolDecls = customTools.map(t => {
+          let properties = {};
+          try {
+              properties = JSON.parse(t.parameters);
+          } catch (e) { console.warn("Invalid params JSON for tool", t.name); }
+          
+          return {
+              name: t.name,
+              description: t.description,
+              parameters: {
+                  type: Type.OBJECT,
+                  properties: properties,
+                  // Assuming all props are required for simplicity in this generic handler
+                  required: Object.keys(properties) 
+              }
+          } as FunctionDeclaration;
+      });
+      
+      // Merge with existing tools config if any
+      config.tools = config.tools || [];
+      config.tools.push({ functionDeclarations: toolDecls });
+  }
+
   if (model === 'gemini-3-flash-preview') {
-    config.tools = [{ googleSearch: {} }];
+    config.tools = [...(config.tools || []), { googleSearch: {} }];
   } else if (model === 'gemini-3-pro-preview' || model === 'gemini-2.5-pro') {
     config.thinkingConfig = { thinkingBudget: 2048 }; 
   } else if (model === 'gemini-2.5-flash') {
-    config.tools = [{ googleMaps: {} }];
+    config.tools = [...(config.tools || []), { googleMaps: {} }];
   }
 
   try {
@@ -238,6 +302,36 @@ export const streamGeminiCompletion = async (
       const c = chunk as GenerateContentResponse;
       const text = c.text;
       if (text) onChunk(text, undefined, undefined, undefined);
+
+      // Handle Function Calls
+      const functionCalls = c.candidates?.[0]?.content?.parts?.[0]?.functionCall;
+      // In stream, we might get function call parts. 
+      // Note: @google/genai stream handling for tools typically requires collecting the full call
+      // For simplicity in this demo, we assume single-turn tool use or non-streaming for tools.
+      // But if we detect a function call in a chunk (which is rare in stream, usually it's a separate turn),
+      // we would execute it. 
+      
+      // Current SDK limitation: stream + automatic tool execution loop is manual.
+      // If we see a function call in the response, we must execute it and send it back.
+      // Since we are streaming *to the UI*, we can't easily interrupt the stream to send back to model 
+      // without breaking the UI flow. 
+      // STRATEGY: We display the "Tool Call" to the user as text, then execute it and append result.
+      
+      // Getting function calls from stream chunks is complex.
+      // We will rely on `response.functionCalls` property if using non-streaming, 
+      // but here we check candidates.
+      if (c.functionCalls && c.functionCalls.length > 0) {
+          for (const fc of c.functionCalls) {
+             onChunk(`\n\n> 🛠️ **Executing Tool:** ${fc.name}...\n`);
+             const toolDef = customTools?.find(t => t.name === fc.name);
+             if (toolDef) {
+                 const result = await executeCustomTool(toolDef, fc.args);
+                 onChunk(`\n> **Result:** ${JSON.stringify(result).substring(0, 200)}...\n\n`);
+                 // In a real agent loop, we would send this back to the model.
+                 // Here we just display it.
+             }
+          }
+      }
 
       const groundingChunk = c.candidates?.[0]?.groundingMetadata?.groundingChunks;
       if (groundingChunk) {

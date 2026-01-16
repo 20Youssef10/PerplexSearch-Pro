@@ -6,7 +6,7 @@ import {
   Folder as FolderIcon, FolderPlus, ChevronRight, ChevronDown, 
   Settings as SettingsIcon, ShieldCheck,
   Briefcase, User as UserIcon, Layout, GraduationCap, Network,
-  Sparkles, X, Save, Zap
+  Sparkles, X, Save, Zap, Rocket, Film, Hammer, Brain, Globe
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,12 +29,19 @@ interface SidebarProps {
   onGoAdmin?: () => void;
   translations: Record<string, string>;
   onCreateGem: (gem: Gem) => void;
+  onOpenGraph: () => void;
+  onOpenMissions: () => void;
+  onOpenStudio: () => void;
+  onOpenToolbelt: () => void;
+  onOpenSemanticSearch: () => void;
+  onOpenWebReader: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   conversations, folders, currentId, workspaces, currentWorkspaceId, gems,
   onSelectWorkspace, onSelectGem, onSelect, onDelete, onNew,
-  onCreateFolder, onDeleteFolder, onOpenCanvas, isAdmin, onGoAdmin, translations, onCreateGem
+  onCreateFolder, onDeleteFolder, onOpenCanvas, isAdmin, onGoAdmin, translations, onCreateGem,
+  onOpenGraph, onOpenMissions, onOpenStudio, onOpenToolbelt, onOpenSemanticSearch, onOpenWebReader
 }) => {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -225,10 +232,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div><h3 className="font-bold text-sm">{gem.name}</h3><p className="text-[10px] text-gray-500 leading-tight mt-0.5">{gem.description}</p></div>
               </button>
             ))}
-             <div className="pt-4 border-t border-gray-100 dark:border-gray-800 mt-4">
+             <div className="pt-4 border-t border-gray-100 dark:border-gray-800 mt-4 pb-10">
               <p className="px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">{t.tools}</p>
-              <button className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><GraduationCap size={16} className="text-blue-500" /> {t.quizMaker}</button>
-              <button className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><Network size={16} className="text-pink-500" /> {t.knowledgeGraph}</button>
+              <button onClick={onOpenMissions} className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><Rocket size={16} className="text-indigo-500" /> Research Missions</button>
+              <button onClick={onOpenStudio} className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><Film size={16} className="text-purple-500" /> Veo Studio</button>
+              <button onClick={onOpenToolbelt} className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><Hammer size={16} className="text-orange-500" /> API Toolbelt</button>
+              <button onClick={onOpenSemanticSearch} className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><Brain size={16} className="text-blue-500" /> Semantic Search</button>
+              <button onClick={onOpenWebReader} className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><Globe size={16} className="text-teal-500" /> Web Reader</button>
+              <button onClick={onOpenGraph} className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium"><Network size={16} className="text-pink-500" /> {t.knowledgeGraph}</button>
             </div>
           </div>
         )}

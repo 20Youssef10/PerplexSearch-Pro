@@ -1,3 +1,4 @@
+
 import { Message, Usage } from '../types';
 
 export const streamAnthropicCompletion = async (
@@ -6,7 +7,8 @@ export const streamAnthropicCompletion = async (
   apiKey: string,
   onChunk: (content: string, citations?: string[], usage?: Usage) => void,
   signal?: AbortSignal,
-  systemPrompt?: string
+  systemPrompt?: string,
+  baseUrl?: string
 ) => {
   // Anthropic format: system prompt is a top-level parameter, not a message
   const apiMessages = messages.filter(m => m.role !== 'system').map(m => ({
@@ -14,14 +16,16 @@ export const streamAnthropicCompletion = async (
     content: m.content
   }));
 
+  const url = (baseUrl || 'https://api.anthropic.com/v1').replace(/\/$/, '') + '/messages';
+
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
         'content-type': 'application/json',
-        'dangerously-allow-browser': 'true' // Required for client-side usage if supported
+        'anthropic-dangerously-allow-browser': 'true' // Correct header for client-side usage
       },
       body: JSON.stringify({
         model: model,

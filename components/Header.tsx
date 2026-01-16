@@ -448,6 +448,15 @@ export const Header: React.FC<HeaderProps> = ({
                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-2"><Server size={12}/> Ollama Base URL</label>
                              <input value={settings.ollamaBaseUrl || 'http://localhost:11434'} onChange={(e) => setSettings({...settings, ollamaBaseUrl: e.target.value})} className="w-full p-3 rounded-lg border dark:bg-gray-800 dark:border-gray-700 font-mono text-sm" placeholder="http://localhost:11434" />
                          </div>
+                         <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-2"><Server size={12}/> OpenAI Base URL (Optional)</label>
+                             <input value={settings.openaiBaseUrl || ''} onChange={(e) => setSettings({...settings, openaiBaseUrl: e.target.value})} className="w-full p-3 rounded-lg border dark:bg-gray-800 dark:border-gray-700 font-mono text-sm" placeholder="https://api.openai.com/v1" />
+                             <p className="text-[10px] text-gray-400 mt-1">Use this to route OpenAI requests through a custom proxy to avoid CORS errors.</p>
+                         </div>
+                         <div className="pt-2">
+                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-2"><Server size={12}/> Anthropic Base URL (Optional)</label>
+                             <input value={settings.anthropicBaseUrl || ''} onChange={(e) => setSettings({...settings, anthropicBaseUrl: e.target.value})} className="w-full p-3 rounded-lg border dark:bg-gray-800 dark:border-gray-700 font-mono text-sm" placeholder="https://api.anthropic.com/v1" />
+                         </div>
                     </div>
                  )}
                  {activeTab === 'data' && (

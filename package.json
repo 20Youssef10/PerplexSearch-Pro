@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && node scripts/generate-seo.js",
+    "build": "export NODE_OPTIONS=\"--max-old-space-size=4096\" && tsc && vite build && node scripts/generate-seo.js",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -37,12 +37,10 @@ const executeCustomTool = async (tool: CustomTool, args: any): Promise<any> => {
 
 export const generateEmbeddings = async (text: string, apiKey: string): Promise<number[]> => {
     const ai = new GoogleGenAI({ apiKey });
-    // Correct usage for newer SDK versions often uses 'contents' and returns 'embeddings'
     const result = await ai.models.embedContent({
         model: 'text-embedding-004',
         contents: [{ parts: [{ text: text }] }]
     });
-    // result.embeddings is an array of ContentEmbedding objects
     return result.embeddings?.[0]?.values || [];
 };
 
@@ -307,21 +305,7 @@ export const streamGeminiCompletion = async (
 
       // Handle Function Calls
       const functionCalls = c.candidates?.[0]?.content?.parts?.[0]?.functionCall;
-      // In stream, we might get function call parts. 
-      // Note: @google/genai stream handling for tools typically requires collecting the full call
-      // For simplicity in this demo, we assume single-turn tool use or non-streaming for tools.
-      // But if we detect a function call in a chunk (which is rare in stream, usually it's a separate turn),
-      // we would execute it. 
       
-      // Current SDK limitation: stream + automatic tool execution loop is manual.
-      // If we see a function call in the response, we must execute it and send it back.
-      // Since we are streaming *to the UI*, we can't easily interrupt the stream to send back to model 
-      // without breaking the UI flow. 
-      // STRATEGY: We display the "Tool Call" to the user as text, then execute it and append result.
-      
-      // Getting function calls from stream chunks is complex.
-      // We will rely on `response.functionCalls` property if using non-streaming, 
-      // but here we check candidates.
       if (c.functionCalls && c.functionCalls.length > 0) {
           for (const fc of c.functionCalls) {
              onChunk(`\n\n> 🛠️ **Executing Tool:** ${fc.name}...\n`);
@@ -329,8 +313,6 @@ export const streamGeminiCompletion = async (
              if (toolDef) {
                  const result = await executeCustomTool(toolDef, fc.args);
                  onChunk(`\n> **Result:** ${JSON.stringify(result).substring(0, 200)}...\n\n`);
-                 // In a real agent loop, we would send this back to the model.
-                 // Here we just display it.
              }
           }
       }

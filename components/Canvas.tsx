@@ -206,7 +206,7 @@ ${document.content.replace(/#/g, '\\#').replace(/_/g, '\\_')}
       `;
       const blob = new Blob([latexContent], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
-      const a = window.document.createElement('a'); // Use window.document to avoid conflict with prop
+      const a = window.document.createElement('a'); // Use window.document to avoid shadowing prop
       a.href = url;
       a.download = `${document.title || 'document'}.tex`;
       a.click();
